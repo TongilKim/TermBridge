@@ -1,0 +1,199 @@
+import { describe, it, expect } from 'vitest';
+import {
+  // Message types
+  type MessageType,
+  type Message,
+  type RealtimeMessageType,
+  type RealtimeMessage,
+  // Session types
+  type SessionStatus,
+  type Session,
+  // Machine types
+  type MachineStatus,
+  type Machine,
+} from '../index';
+
+describe('Message Types', () => {
+  describe('MessageType', () => {
+    it('should include output, input, error, system', () => {
+      const validTypes: MessageType[] = ['output', 'input', 'error', 'system'];
+      validTypes.forEach((type) => {
+        const msg: { type: MessageType } = { type };
+        expect(msg.type).toBe(type);
+      });
+    });
+  });
+
+  describe('Message interface', () => {
+    it('should have required fields (id, session_id, type, content, created_at)', () => {
+      const message: Message = {
+        id: 1,
+        session_id: 'session-123',
+        type: 'output',
+        content: 'Hello world',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+
+      expect(message.id).toBe(1);
+      expect(message.session_id).toBe('session-123');
+      expect(message.type).toBe('output');
+      expect(message.content).toBe('Hello world');
+      expect(message.created_at).toBe('2024-01-01T00:00:00Z');
+    });
+  });
+
+  describe('RealtimeMessage interface', () => {
+    it('should have required fields (type, content, timestamp, seq)', () => {
+      const message: RealtimeMessage = {
+        type: 'output',
+        content: 'test content',
+        timestamp: 1704067200000,
+        seq: 0,
+      };
+
+      expect(message.type).toBe('output');
+      expect(message.content).toBe('test content');
+      expect(message.timestamp).toBe(1704067200000);
+      expect(message.seq).toBe(0);
+    });
+
+    it('should include ping and pong message types', () => {
+      const pingMessage: RealtimeMessage = {
+        type: 'ping',
+        timestamp: Date.now(),
+        seq: 1,
+      };
+
+      const pongMessage: RealtimeMessage = {
+        type: 'pong',
+        timestamp: Date.now(),
+        seq: 2,
+      };
+
+      expect(pingMessage.type).toBe('ping');
+      expect(pongMessage.type).toBe('pong');
+
+      // Verify all valid types compile
+      const validTypes: RealtimeMessageType[] = [
+        'output',
+        'input',
+        'error',
+        'system',
+        'ping',
+        'pong',
+      ];
+      validTypes.forEach((type) => {
+        const msg: RealtimeMessage = { type, timestamp: 0, seq: 0 };
+        expect(msg.type).toBe(type);
+      });
+    });
+  });
+});
+
+describe('Session Types', () => {
+  describe('SessionStatus', () => {
+    it('should include active, paused, ended', () => {
+      const validStatuses: SessionStatus[] = ['active', 'paused', 'ended'];
+      validStatuses.forEach((status) => {
+        const session: { status: SessionStatus } = { status };
+        expect(session.status).toBe(status);
+      });
+    });
+  });
+
+  describe('Session interface', () => {
+    it('should have required fields (id, machine_id, status, started_at)', () => {
+      const session: Session = {
+        id: 'session-123',
+        machine_id: 'machine-456',
+        status: 'active',
+        started_at: '2024-01-01T00:00:00Z',
+      };
+
+      expect(session.id).toBe('session-123');
+      expect(session.machine_id).toBe('machine-456');
+      expect(session.status).toBe('active');
+      expect(session.started_at).toBe('2024-01-01T00:00:00Z');
+    });
+
+    it('should have optional fields (working_directory, ended_at)', () => {
+      // Session without optional fields
+      const minimalSession: Session = {
+        id: 'session-123',
+        machine_id: 'machine-456',
+        status: 'active',
+        started_at: '2024-01-01T00:00:00Z',
+      };
+      expect(minimalSession.working_directory).toBeUndefined();
+      expect(minimalSession.ended_at).toBeUndefined();
+
+      // Session with optional fields
+      const fullSession: Session = {
+        id: 'session-123',
+        machine_id: 'machine-456',
+        status: 'ended',
+        started_at: '2024-01-01T00:00:00Z',
+        working_directory: '/home/user/project',
+        ended_at: '2024-01-01T01:00:00Z',
+      };
+      expect(fullSession.working_directory).toBe('/home/user/project');
+      expect(fullSession.ended_at).toBe('2024-01-01T01:00:00Z');
+    });
+  });
+});
+
+describe('Machine Types', () => {
+  describe('MachineStatus', () => {
+    it('should include online, offline', () => {
+      const validStatuses: MachineStatus[] = ['online', 'offline'];
+      validStatuses.forEach((status) => {
+        const machine: { status: MachineStatus } = { status };
+        expect(machine.status).toBe(status);
+      });
+    });
+  });
+
+  describe('Machine interface', () => {
+    it('should have required fields (id, user_id, name, status, created_at)', () => {
+      const machine: Machine = {
+        id: 'machine-123',
+        user_id: 'user-456',
+        name: 'My MacBook',
+        status: 'online',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+
+      expect(machine.id).toBe('machine-123');
+      expect(machine.user_id).toBe('user-456');
+      expect(machine.name).toBe('My MacBook');
+      expect(machine.status).toBe('online');
+      expect(machine.created_at).toBe('2024-01-01T00:00:00Z');
+    });
+
+    it('should have optional fields (hostname, last_seen_at)', () => {
+      // Machine without optional fields
+      const minimalMachine: Machine = {
+        id: 'machine-123',
+        user_id: 'user-456',
+        name: 'My MacBook',
+        status: 'online',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+      expect(minimalMachine.hostname).toBeUndefined();
+      expect(minimalMachine.last_seen_at).toBeUndefined();
+
+      // Machine with optional fields
+      const fullMachine: Machine = {
+        id: 'machine-123',
+        user_id: 'user-456',
+        name: 'My MacBook',
+        hostname: 'macbook-pro.local',
+        last_seen_at: '2024-01-01T00:30:00Z',
+        status: 'online',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+      expect(fullMachine.hostname).toBe('macbook-pro.local');
+      expect(fullMachine.last_seen_at).toBe('2024-01-01T00:30:00Z');
+    });
+  });
+});

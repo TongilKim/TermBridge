@@ -1,0 +1,33 @@
+{
+  "name": "@termbridge/cli",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "termbridge": "./bin/termbridge",
+    "claude-remote": "./bin/termbridge"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "@termbridge/shared": "workspace:*",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "conf": "^12.0.0",
+    "dotenv": "^17.2.3",
+    "node-pty": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@termbridge/tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@termbridge/shared": "workspace:*",
+    "vitest": "^1.0.0"
+  }
+}
