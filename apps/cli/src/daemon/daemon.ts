@@ -101,15 +101,15 @@ export class Daemon extends EventEmitter {
     // Connect to realtime
     await this.realtimeClient.connect();
 
-    // Start PTY
+    this.running = true;
+    this.emit('started', { machine: this.machine, session: this.session });
+
+    // Start PTY (after emitting started so success message shows first)
     await this.ptyManager.spawn(
       this.options.command,
       this.options.args,
       this.options.cwd
     );
-
-    this.running = true;
-    this.emit('started', { machine: this.machine, session: this.session });
   }
 
   async stop(): Promise<void> {
