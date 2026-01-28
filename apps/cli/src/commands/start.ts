@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Daemon } from '../daemon/daemon.js';
 import { Config } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
+import { Spinner } from '../utils/spinner.js';
 
 export interface StartOptions {
   daemon?: boolean;
@@ -20,8 +21,11 @@ export function createStartCommand(): Command {
     .action(async (args: string[], options: StartOptions) => {
       const config = new Config();
       const logger = new Logger();
+      const spinner = new Spinner('Starting TermBridge...');
 
       try {
+        spinner.start();
+
         const supabaseUrl = config.getSupabaseUrl();
         const supabaseKey = config.getSupabaseAnonKey();
 
@@ -34,13 +38,16 @@ export function createStartCommand(): Command {
           process.exit(1);
         }
 
+        spinner.update('Authenticating...');
+
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: sessionTokens.accessToken,
           refresh_token: sessionTokens.refreshToken,
         });
 
         if (sessionError) {
-          logger.error('Session expired. Run "termbridge login" again.');
+          spinner.fail('Session expired');
+          logger.error('Run "termbridge login" again.');
           config.clearSessionTokens();
           process.exit(1);
         }
@@ -52,9 +59,12 @@ export function createStartCommand(): Command {
         } = await supabase.auth.getUser();
 
         if (authError || !user) {
-          logger.error('Not authenticated. Run "termbridge login" first.');
+          spinner.fail('Not authenticated');
+          logger.error('Run "termbridge login" first.');
           process.exit(1);
         }
+
+        spinner.update('Registering machine...');
 
         const commandArgs = args.length > 0 ? args : ['claude'];
         const cmd = commandArgs[0] ?? 'claude';
@@ -75,7 +85,8 @@ export function createStartCommand(): Command {
           // Save machine ID for future use
           config.setMachineId(machine.id);
 
-          // Show success message
+          // Stop spinner and show success message
+          spinner.stop();
           logger.info('');
           logger.info('✓ TermBridge is ready!');
           logger.info(`  Session: ${session.id.slice(0, 8)}...`);
@@ -140,8 +151,9 @@ export function createStartCommand(): Command {
           }
         }
       } catch (error) {
+        spinner.fail('Failed to start');
         logger.error(
-          `Failed to start: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `${error instanceof Error ? error.message : 'Unknown error'}`
         );
         process.exit(1);
       }
