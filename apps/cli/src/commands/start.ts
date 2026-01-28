@@ -89,16 +89,26 @@ export function createStartCommand(): Command {
         });
 
         daemon.on('stopped', () => {
+          // Restore terminal to normal mode
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
           logger.info('Session ended');
         });
 
         // Handle process signals
         process.on('SIGINT', async () => {
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
           await daemon.stop();
           process.exit(0);
         });
 
         process.on('SIGTERM', async () => {
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(false);
+          }
           await daemon.stop();
           process.exit(0);
         });
