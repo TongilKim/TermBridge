@@ -106,19 +106,28 @@ export function createStartCommand(): Command {
         await daemon.start();
 
         // If not daemon mode, pipe stdin to PTY
-        if (!options.daemon && process.stdin.isTTY) {
-          process.stdin.setRawMode(true);
+        if (!options.daemon) {
+          // Set raw mode if TTY is available
+          if (process.stdin.isTTY) {
+            process.stdin.setRawMode(true);
+          }
+
+          // Resume stdin to receive data
+          process.stdin.resume();
+
           process.stdin.on('data', (data) => {
             daemon.write(data.toString());
           });
 
-          // Handle resize
-          process.stdout.on('resize', () => {
-            daemon.resize(
-              process.stdout.columns || 80,
-              process.stdout.rows || 24
-            );
-          });
+          // Handle resize (only works with TTY)
+          if (process.stdout.isTTY) {
+            process.stdout.on('resize', () => {
+              daemon.resize(
+                process.stdout.columns || 80,
+                process.stdout.rows || 24
+              );
+            });
+          }
         }
       } catch (error) {
         logger.error(
