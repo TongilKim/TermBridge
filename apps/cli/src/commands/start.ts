@@ -72,13 +72,16 @@ export function createStartCommand(): Command {
         });
 
         daemon.on('started', ({ machine, session }) => {
-          if (options.daemon) {
-            logger.info(`Session started: ${session.id}`);
-            logger.info(`Machine: ${machine.name} (${machine.id})`);
-          }
-
           // Save machine ID for future use
           config.setMachineId(machine.id);
+
+          // Show success message
+          logger.info('');
+          logger.info('✓ TermBridge is ready!');
+          logger.info(`  Session: ${session.id.slice(0, 8)}...`);
+          logger.info(`  Machine: ${machine.name}`);
+          logger.info('  Mobile app can now connect to this session.');
+          logger.info('');
         });
 
         daemon.on('notification', ({ type, message }) => {
