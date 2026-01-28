@@ -50,7 +50,12 @@ export class RealtimeClient extends EventEmitter {
           resolve(false);
         }, SUBSCRIPTION_TIMEOUT);
 
-        channel.subscribe((status) => {
+        channel.subscribe((status, err) => {
+          // Debug: log all status changes
+          if (process.env['DEBUG']) {
+            console.log(`[DEBUG] Channel ${channelName} status: ${status}`, err || '');
+          }
+
           if (status === 'SUBSCRIBED') {
             clearTimeout(timeout);
             resolve(true);
@@ -60,11 +65,20 @@ export class RealtimeClient extends EventEmitter {
             console.warn(
               `[WARN] Failed to subscribe to ${channelName}. Mobile sync disabled.`
             );
+            if (err) {
+              console.warn(`[WARN] Error details: ${err.message || err}`);
+            }
             resolve(false);
           } else if (status === 'CLOSED') {
             clearTimeout(timeout);
             console.warn(
               `[WARN] Channel ${channelName} closed. Mobile sync disabled.`
+            );
+            resolve(false);
+          } else if (status === 'TIMED_OUT') {
+            clearTimeout(timeout);
+            console.warn(
+              `[WARN] Channel ${channelName} timed out. Check your network connection.`
             );
             resolve(false);
           }

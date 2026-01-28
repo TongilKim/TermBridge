@@ -1,9 +1,16 @@
 import { Command } from 'commander';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { Daemon } from '../daemon/daemon.js';
 import { Config } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
 import { Spinner } from '../utils/spinner.js';
+
+// Polyfill WebSocket for Node.js (Supabase Realtime needs this)
+if (typeof globalThis.WebSocket === 'undefined') {
+  // @ts-expect-error WebSocket polyfill for Node.js
+  globalThis.WebSocket = WebSocket;
+}
 
 export interface StartOptions {
   daemon?: boolean;
@@ -29,7 +36,14 @@ export function createStartCommand(): Command {
         const supabaseUrl = config.getSupabaseUrl();
         const supabaseKey = config.getSupabaseAnonKey();
 
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          realtime: {
+            params: {
+              eventsPerSecond: 10,
+            },
+            timeout: 30000, // 30 second timeout for WebSocket connection
+          },
+        });
 
         // Restore session from stored tokens
         const sessionTokens = config.getSessionTokens();
