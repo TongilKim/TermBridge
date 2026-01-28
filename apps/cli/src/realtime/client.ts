@@ -14,6 +14,7 @@ export class RealtimeClient extends EventEmitter {
   private outputChannel: RealtimeChannel | null = null;
   private inputChannel: RealtimeChannel | null = null;
   private seq: number = 0;
+  private realtimeEnabled: boolean = false;
 
   constructor(options: RealtimeClientOptions) {
     super();
@@ -39,36 +40,39 @@ export class RealtimeClient extends EventEmitter {
     const subscribeWithTimeout = (
       channel: RealtimeChannel,
       channelName: string
-    ): Promise<void> => {
-      return new Promise<void>((resolve) => {
+    ): Promise<boolean> => {
+      return new Promise<boolean>((resolve) => {
         const timeout = setTimeout(() => {
           // Resolve with warning instead of rejecting - allows CLI to work without realtime
           console.warn(
             `[WARN] Realtime subscription timeout for ${channelName}. Mobile sync disabled.`
           );
-          resolve();
+          resolve(false);
         }, SUBSCRIPTION_TIMEOUT);
 
         channel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
             clearTimeout(timeout);
-            resolve();
+            resolve(true);
           } else if (status === 'CHANNEL_ERROR') {
             clearTimeout(timeout);
             // Resolve with warning instead of rejecting
             console.warn(
               `[WARN] Failed to subscribe to ${channelName}. Mobile sync disabled.`
             );
-            resolve();
+            resolve(false);
           }
         });
       });
     };
 
-    await Promise.all([
+    const results = await Promise.all([
       subscribeWithTimeout(this.outputChannel, 'output'),
       subscribeWithTimeout(this.inputChannel, 'input'),
     ]);
+
+    // Only enable realtime if both channels subscribed successfully
+    this.realtimeEnabled = results.every((success) => success);
 
     this.emit('connected');
   }
@@ -90,6 +94,11 @@ export class RealtimeClient extends EventEmitter {
   async broadcast(content: string): Promise<void> {
     if (!this.outputChannel) {
       throw new Error('Not connected');
+    }
+
+    // Skip broadcasting if realtime is not enabled
+    if (!this.realtimeEnabled) {
+      return;
     }
 
     const message: RealtimeMessage = {
@@ -114,5 +123,9 @@ export class RealtimeClient extends EventEmitter {
 
   isConnected(): boolean {
     return this.outputChannel !== null && this.inputChannel !== null;
+  }
+
+  isRealtimeEnabled(): boolean {
+    return this.realtimeEnabled;
   }
 }
