@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../src/stores/authStore';
 
 export default function RootLayout() {
@@ -11,15 +11,17 @@ export default function RootLayout() {
   const { user, isLoading, initialize } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const navigationState = useRootNavigationState();
 
   // Initialize auth on app load
   useEffect(() => {
     initialize();
   }, []);
 
-  // Redirect based on auth state
+  // Redirect based on auth state - only after navigation is ready
   useEffect(() => {
     if (isLoading) return;
+    if (!navigationState?.key) return; // Wait for navigator to be ready
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -30,7 +32,16 @@ export default function RootLayout() {
       // Authenticated, redirect to main app
       router.replace('/(tabs)');
     }
-  }, [user, segments, isLoading]);
+  }, [user, segments, isLoading, navigationState?.key]);
+
+  // Show loading screen while initializing or waiting for navigation
+  if (isLoading || !navigationState?.key) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#0a0a0a' : '#ffffff' }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   return (
     <>
