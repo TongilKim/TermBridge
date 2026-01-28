@@ -27,6 +27,24 @@ export function createStartCommand(): Command {
 
         const supabase = createClient(supabaseUrl, supabaseKey);
 
+        // Restore session from stored tokens
+        const sessionTokens = config.getSessionTokens();
+        if (!sessionTokens) {
+          logger.error('Not authenticated. Run "termbridge login" first.');
+          process.exit(1);
+        }
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: sessionTokens.accessToken,
+          refresh_token: sessionTokens.refreshToken,
+        });
+
+        if (sessionError) {
+          logger.error('Session expired. Run "termbridge login" again.');
+          config.clearSessionTokens();
+          process.exit(1);
+        }
+
         // Get current user
         const {
           data: { user },

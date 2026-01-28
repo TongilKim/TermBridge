@@ -101,7 +101,7 @@ export default function SettingsScreen() {
         </Text>
         <View style={[styles.card, isDark && styles.cardDark]}>
           <View style={styles.rowWithSwitch}>
-            <View>
+            <View style={styles.switchLabelContainer}>
               <Text style={[styles.label, isDark && styles.labelDark]}>
                 Push Notifications
               </Text>
@@ -194,6 +194,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+  },
+  switchLabelContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   label: {
     fontSize: 16,

@@ -19,6 +19,26 @@ export function createStatusCommand(): Command {
 
         const supabase = createClient(supabaseUrl, supabaseKey);
 
+        // Restore session from stored tokens
+        const sessionTokens = config.getSessionTokens();
+        if (!sessionTokens) {
+          logger.info('Status: Not authenticated');
+          logger.info('Run "termbridge login" to authenticate');
+          return;
+        }
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: sessionTokens.accessToken,
+          refresh_token: sessionTokens.refreshToken,
+        });
+
+        if (sessionError) {
+          logger.info('Status: Session expired');
+          logger.info('Run "termbridge login" to authenticate');
+          config.clearSessionTokens();
+          return;
+        }
+
         // Get current user
         const {
           data: { user },
