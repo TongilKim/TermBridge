@@ -33,8 +33,8 @@ importers:
         specifier: ^17.2.3
         version: 17.2.3
       node-pty:
-        specifier: ^1.0.0
-        version: 1.1.0
+        specifier: 1.2.0-beta.8
+        version: 1.2.0-beta.8
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -5417,8 +5417,8 @@ packages:
   /node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
 
-  /node-pty@1.1.0:
-    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
+  /node-pty@1.2.0-beta.8:
+    resolution: {integrity: sha512-2gDjTGB/VaMV8cmFMg0d7IfLcWkxtyekn9VSqpq+tUOiu5+nnLfVXYHZbjZCq1kXhnxbdlBjaKLvvVWIbFkicw==}
     requiresBuild: true
     dependencies:
       node-addon-api: 7.1.1
