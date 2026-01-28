@@ -1,47 +1,44 @@
-import { useEffect, useState } from 'react';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, Redirect, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme, View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../src/stores/authStore';
+
+function useProtectedRoute(user: any, isLoading: boolean) {
+  const segments = useSegments();
+
+  // If still loading, don't redirect yet
+  if (isLoading) {
+    return null;
+  }
+
+  const inAuthGroup = segments[0] === '(auth)';
+
+  if (!user && !inAuthGroup) {
+    // Not authenticated, redirect to login
+    return '/(auth)/login';
+  }
+
+  if (user && inAuthGroup) {
+    // Authenticated but in auth group, redirect to main app
+    return '/(tabs)';
+  }
+
+  return null;
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   const { user, isLoading, initialize } = useAuthStore();
-  const segments = useSegments();
-  const router = useRouter();
-  const navigationState = useRootNavigationState();
 
   // Initialize auth on app load
   useEffect(() => {
     initialize();
   }, []);
 
-  // Redirect based on auth state - only after navigation is ready
-  useEffect(() => {
-    if (isLoading) return;
-    if (!navigationState?.key) return; // Wait for navigator to be ready
-
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!user && !inAuthGroup) {
-      // Not authenticated, redirect to login
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      // Authenticated, redirect to main app
-      router.replace('/(tabs)');
-    }
-  }, [user, segments, isLoading, navigationState?.key]);
-
-  // Show loading screen while initializing or waiting for navigation
-  if (isLoading || !navigationState?.key) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#0a0a0a' : '#ffffff' }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
+  const redirectTo = useProtectedRoute(user, isLoading);
 
   return (
     <>
@@ -68,6 +65,23 @@ export default function RootLayout() {
           }}
         />
       </Stack>
+      {redirectTo && <Redirect href={redirectTo} />}
+      {isLoading && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#0a0a0a' : '#ffffff',
+          }}
+        >
+          <ActivityIndicator size="large" color="#3b82f6" />
+        </View>
+      )}
     </>
   );
 }
