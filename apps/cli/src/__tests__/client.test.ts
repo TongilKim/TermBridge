@@ -315,4 +315,146 @@ describe('RealtimeClient', () => {
     // Should still emit connected event (with degraded functionality)
     expect(connectedCallback).toHaveBeenCalled();
   });
+
+  it('should report realtime enabled when subscription succeeds', async () => {
+    const client = new RealtimeClient({
+      supabase: mockSupabase as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    expect(client.isRealtimeEnabled()).toBe(false);
+
+    await client.connect();
+
+    expect(client.isRealtimeEnabled()).toBe(true);
+  });
+
+  it('should report realtime disabled when subscription fails', async () => {
+    // Create channel that returns CHANNEL_ERROR
+    const errorOutputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorOutputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorInputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorInputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorSupabase = {
+      channel: vi.fn((name) => {
+        if (name.includes('output')) {
+          return errorOutputChannel as RealtimeChannel;
+        }
+        return errorInputChannel as RealtimeChannel;
+      }),
+      removeChannel: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const client = new RealtimeClient({
+      supabase: errorSupabase as unknown as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+
+    expect(client.isRealtimeEnabled()).toBe(false);
+  });
+
+  it('should skip broadcast when realtime is disabled', async () => {
+    // Create channel that returns CHANNEL_ERROR (realtime disabled)
+    const errorOutputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorOutputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorInputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorInputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorSupabase = {
+      channel: vi.fn((name) => {
+        if (name.includes('output')) {
+          return errorOutputChannel as RealtimeChannel;
+        }
+        return errorInputChannel as RealtimeChannel;
+      }),
+      removeChannel: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const client = new RealtimeClient({
+      supabase: errorSupabase as unknown as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+
+    // Broadcast should not throw and should not send
+    await client.broadcast('test output');
+
+    // send() should NOT have been called since realtime is disabled
+    expect(errorOutputChannel.send).not.toHaveBeenCalled();
+  });
+
+  it('should not increment sequence number when realtime is disabled', async () => {
+    // Create channel that returns CHANNEL_ERROR (realtime disabled)
+    const errorOutputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorOutputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorInputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorInputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorSupabase = {
+      channel: vi.fn((name) => {
+        if (name.includes('output')) {
+          return errorOutputChannel as RealtimeChannel;
+        }
+        return errorInputChannel as RealtimeChannel;
+      }),
+      removeChannel: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const client = new RealtimeClient({
+      supabase: errorSupabase as unknown as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+
+    expect(client.getSeq()).toBe(0);
+
+    await client.broadcast('test output');
+
+    // Sequence should NOT increment when realtime is disabled
+    expect(client.getSeq()).toBe(0);
+  });
 });
