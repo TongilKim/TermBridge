@@ -61,6 +61,12 @@ export class RealtimeClient extends EventEmitter {
               `[WARN] Failed to subscribe to ${channelName}. Mobile sync disabled.`
             );
             resolve(false);
+          } else if (status === 'CLOSED') {
+            clearTimeout(timeout);
+            console.warn(
+              `[WARN] Channel ${channelName} closed. Mobile sync disabled.`
+            );
+            resolve(false);
           }
         });
       });

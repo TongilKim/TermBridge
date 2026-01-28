@@ -81,7 +81,7 @@ export function createStartCommand(): Command {
           hybrid: !options.daemon,
         });
 
-        daemon.on('started', ({ machine, session }) => {
+        daemon.on('started', ({ machine, session, mobileSyncEnabled }) => {
           // Save machine ID for future use
           config.setMachineId(machine.id);
 
@@ -91,7 +91,11 @@ export function createStartCommand(): Command {
           logger.info('✓ TermBridge is ready!');
           logger.info(`  Session: ${session.id.slice(0, 8)}...`);
           logger.info(`  Machine: ${machine.name}`);
-          logger.info('  Mobile app can now connect to this session.');
+          if (mobileSyncEnabled) {
+            logger.info('  Mobile sync: Enabled');
+          } else {
+            logger.warn('  Mobile sync: Disabled (check Supabase Realtime settings)');
+          }
           logger.info('');
         });
 
