@@ -14,9 +14,29 @@ vi.mock('node-pty', () => ({
   spawn: vi.fn(() => mockPtyProcess),
 }));
 
+// Mock child_process for fallback tests
+const mockChildProcess = {
+  stdout: {
+    on: vi.fn(),
+  },
+  stderr: {
+    on: vi.fn(),
+  },
+  stdin: {
+    write: vi.fn(),
+  },
+  on: vi.fn(),
+  kill: vi.fn(),
+};
+
+vi.mock('child_process', () => ({
+  spawn: vi.fn(() => mockChildProcess),
+}));
+
 // Import after mocking
 import { PtyManager } from '../daemon/pty.js';
 import * as pty from 'node-pty';
+import * as childProcess from 'child_process';
 
 describe('PtyManager', () => {
   let ptyManager: PtyManager | null = null;
@@ -180,5 +200,119 @@ describe('PtyManager', () => {
         name: 'xterm-256color',
       })
     );
+  });
+
+  it('should fall back to child_process when node-pty fails', async () => {
+    // Make node-pty throw an error
+    vi.mocked(pty.spawn).mockImplementationOnce(() => {
+      throw new Error('posix_spawnp failed');
+    });
+
+    ptyManager = new PtyManager();
+
+    // Should not throw - falls back to child_process
+    await ptyManager.spawn('echo', ['fallback test'], process.cwd());
+
+    // Verify fallback is being used
+    expect(ptyManager.isUsingFallback()).toBe(true);
+    // Verify child_process.spawn was called
+    expect(childProcess.spawn).toHaveBeenCalledWith(
+      'echo',
+      ['fallback test'],
+      expect.objectContaining({
+        cwd: process.cwd(),
+        shell: true,
+      })
+    );
+  });
+
+  it('should emit output event from child_process stdout in fallback mode', async () => {
+    let stdoutCallback: ((data: Buffer) => void) | null = null;
+
+    // Capture the stdout callback
+    mockChildProcess.stdout.on.mockImplementation((event, cb) => {
+      if (event === 'data') {
+        stdoutCallback = cb;
+      }
+    });
+
+    // Make node-pty throw an error
+    vi.mocked(pty.spawn).mockImplementationOnce(() => {
+      throw new Error('posix_spawnp failed');
+    });
+
+    ptyManager = new PtyManager();
+
+    const outputs: string[] = [];
+    ptyManager.on('output', (data: string) => {
+      outputs.push(data);
+    });
+
+    await ptyManager.spawn('echo', ['fallback output'], process.cwd());
+
+    // Simulate stdout output from child_process
+    if (stdoutCallback) {
+      stdoutCallback(Buffer.from('fallback output\n'));
+    }
+
+    // Verify output was emitted
+    expect(outputs).toContain('fallback output\n');
+  });
+
+  it('should emit exit event from child_process in fallback mode', async () => {
+    let exitCallback: ((code: number | null) => void) | null = null;
+
+    // Capture the exit callback
+    mockChildProcess.on.mockImplementation((event, cb) => {
+      if (event === 'exit') {
+        exitCallback = cb;
+      }
+    });
+
+    // Make node-pty throw an error
+    vi.mocked(pty.spawn).mockImplementationOnce(() => {
+      throw new Error('posix_spawnp failed');
+    });
+
+    ptyManager = new PtyManager();
+
+    let exitCode: number | undefined;
+    ptyManager.on('exit', (code: number) => {
+      exitCode = code;
+    });
+
+    await ptyManager.spawn('echo', ['test'], process.cwd());
+
+    // Simulate process exit
+    if (exitCallback) {
+      exitCallback(0);
+    }
+
+    expect(exitCode).toBe(0);
+  });
+
+  it('should write to child_process stdin in fallback mode', async () => {
+    // Make node-pty throw an error
+    vi.mocked(pty.spawn).mockImplementationOnce(() => {
+      throw new Error('posix_spawnp failed');
+    });
+
+    ptyManager = new PtyManager();
+
+    await ptyManager.spawn('cat', [], process.cwd());
+
+    ptyManager.write('hello from fallback\n');
+
+    expect(mockChildProcess.stdin.write).toHaveBeenCalledWith(
+      'hello from fallback\n'
+    );
+  });
+
+  it('should report isUsingFallback as false when node-pty works', async () => {
+    ptyManager = new PtyManager();
+
+    await ptyManager.spawn('echo', ['test'], process.cwd());
+
+    expect(ptyManager.isUsingFallback()).toBe(false);
   });
 });

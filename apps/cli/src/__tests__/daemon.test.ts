@@ -41,6 +41,17 @@ describe('Daemon', () => {
     ended_at: null,
   };
 
+  // Helper to create chainable eq mock
+  const createChainableEq = (finalResult: any) => {
+    const eqMock: any = vi.fn();
+    eqMock.mockReturnValue({
+      eq: eqMock,
+      single: vi.fn().mockResolvedValue(finalResult),
+      order: vi.fn().mockResolvedValue(finalResult),
+    });
+    return eqMock;
+  };
+
   beforeEach(() => {
     mockOutputChannel = {
       subscribe: vi.fn((cb) => {
@@ -73,11 +84,9 @@ describe('Daemon', () => {
               eq: vi.fn().mockResolvedValue({ error: null }),
             }),
             select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { code: 'PGRST116', message: 'Not found' },
-                }),
+              eq: createChainableEq({
+                data: null,
+                error: { code: 'PGRST116', message: 'Not found' },
               }),
             }),
           };

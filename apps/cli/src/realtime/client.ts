@@ -34,25 +34,40 @@ export class RealtimeClient extends EventEmitter {
       this.emit('input', payload.payload as RealtimeMessage);
     });
 
+    const SUBSCRIPTION_TIMEOUT = 10000; // 10 second timeout
+
+    const subscribeWithTimeout = (
+      channel: RealtimeChannel,
+      channelName: string
+    ): Promise<void> => {
+      return new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          // Resolve with warning instead of rejecting - allows CLI to work without realtime
+          console.warn(
+            `[WARN] Realtime subscription timeout for ${channelName}. Mobile sync disabled.`
+          );
+          resolve();
+        }, SUBSCRIPTION_TIMEOUT);
+
+        channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CHANNEL_ERROR') {
+            clearTimeout(timeout);
+            // Resolve with warning instead of rejecting
+            console.warn(
+              `[WARN] Failed to subscribe to ${channelName}. Mobile sync disabled.`
+            );
+            resolve();
+          }
+        });
+      });
+    };
+
     await Promise.all([
-      new Promise<void>((resolve, reject) => {
-        this.outputChannel!.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            resolve();
-          } else if (status === 'CHANNEL_ERROR') {
-            reject(new Error('Failed to subscribe to output channel'));
-          }
-        });
-      }),
-      new Promise<void>((resolve, reject) => {
-        this.inputChannel!.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            resolve();
-          } else if (status === 'CHANNEL_ERROR') {
-            reject(new Error('Failed to subscribe to input channel'));
-          }
-        });
-      }),
+      subscribeWithTimeout(this.outputChannel, 'output'),
+      subscribeWithTimeout(this.inputChannel, 'input'),
     ]);
 
     this.emit('connected');

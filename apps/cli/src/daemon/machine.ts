@@ -30,6 +30,20 @@ export class MachineManager {
       }
     }
 
+    // Check if machine with same user_id and hostname already exists
+    const { data: existingByHostname } = await this.supabase
+      .from('machines')
+      .select()
+      .eq('user_id', userId)
+      .eq('hostname', hostname)
+      .single();
+
+    if (existingByHostname) {
+      // Update existing machine and return it
+      await this.updateMachineStatus(existingByHostname.id, 'online');
+      return existingByHostname as Machine;
+    }
+
     // Create new machine
     const { data, error } = await this.supabase
       .from('machines')

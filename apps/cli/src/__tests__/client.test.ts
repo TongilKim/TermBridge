@@ -222,4 +222,97 @@ describe('RealtimeClient', () => {
 
     await expect(client.broadcast('test')).rejects.toThrow('Not connected');
   });
+
+  it('should handle subscription timeout gracefully', async () => {
+    // Create channel that never calls back with SUBSCRIBED
+    const slowOutputChannel = {
+      subscribe: vi.fn(() => slowOutputChannel as RealtimeChannel),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const slowInputChannel = {
+      subscribe: vi.fn(() => slowInputChannel as RealtimeChannel),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const slowSupabase = {
+      channel: vi.fn((name) => {
+        if (name.includes('output')) {
+          return slowOutputChannel as RealtimeChannel;
+        }
+        return slowInputChannel as RealtimeChannel;
+      }),
+      removeChannel: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const client = new RealtimeClient({
+      supabase: slowSupabase as unknown as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    const connectedCallback = vi.fn();
+    client.on('connected', connectedCallback);
+
+    // Use fake timers to simulate timeout
+    vi.useFakeTimers();
+
+    const connectPromise = client.connect();
+
+    // Fast-forward past the timeout (10 seconds)
+    await vi.advanceTimersByTimeAsync(11000);
+
+    await connectPromise;
+
+    // Should still emit connected event (with degraded functionality)
+    expect(connectedCallback).toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('should handle CHANNEL_ERROR status gracefully', async () => {
+    // Create channel that returns CHANNEL_ERROR
+    const errorOutputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorOutputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorInputChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('CHANNEL_ERROR'), 0);
+        return errorInputChannel as RealtimeChannel;
+      }),
+      send: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
+    const errorSupabase = {
+      channel: vi.fn((name) => {
+        if (name.includes('output')) {
+          return errorOutputChannel as RealtimeChannel;
+        }
+        return errorInputChannel as RealtimeChannel;
+      }),
+      removeChannel: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const client = new RealtimeClient({
+      supabase: errorSupabase as unknown as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    const connectedCallback = vi.fn();
+    client.on('connected', connectedCallback);
+
+    // Should not throw - handles error gracefully
+    await client.connect();
+
+    // Should still emit connected event (with degraded functionality)
+    expect(connectedCallback).toHaveBeenCalled();
+  });
 });
