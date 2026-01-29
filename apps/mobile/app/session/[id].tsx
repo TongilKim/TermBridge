@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   useColorScheme,
   KeyboardAvoidingView,
@@ -41,16 +42,47 @@ export default function SessionScreen() {
     >
       <Stack.Screen
         options={{
-          title: state === 'connected' ? 'Live Session' : 'Session',
+          title: 'Session',
           headerRight: () => (
             <View
               style={[
-                styles.statusIndicator,
+                styles.statusBadge,
                 state === 'connected'
-                  ? styles.statusConnected
-                  : styles.statusDisconnected,
+                  ? styles.statusBadgeConnected
+                  : state === 'connecting' || state === 'reconnecting'
+                    ? styles.statusBadgeConnecting
+                    : styles.statusBadgeDisconnected,
               ]}
-            />
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  state === 'connected'
+                    ? styles.statusDotConnected
+                    : state === 'connecting' || state === 'reconnecting'
+                      ? styles.statusDotConnecting
+                      : styles.statusDotDisconnected,
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusText,
+                  state === 'connected'
+                    ? styles.statusTextConnected
+                    : state === 'connecting' || state === 'reconnecting'
+                      ? styles.statusTextConnecting
+                      : styles.statusTextDisconnected,
+                ]}
+              >
+                {state === 'connected'
+                  ? 'Live'
+                  : state === 'connecting'
+                    ? 'Connecting'
+                    : state === 'reconnecting'
+                      ? 'Reconnecting'
+                      : 'Offline'}
+              </Text>
+            </View>
           ),
         }}
       />
@@ -70,16 +102,52 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#0a0a0a',
   },
-  statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  // Status badge
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
     marginRight: 8,
+    gap: 6,
   },
-  statusConnected: {
+  statusBadgeConnected: {
+    backgroundColor: '#dcfce7',
+  },
+  statusBadgeConnecting: {
+    backgroundColor: '#fef3c7',
+  },
+  statusBadgeDisconnected: {
+    backgroundColor: '#f3f4f6',
+  },
+  // Status dot
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusDotConnected: {
     backgroundColor: '#22c55e',
   },
-  statusDisconnected: {
+  statusDotConnecting: {
+    backgroundColor: '#f59e0b',
+  },
+  statusDotDisconnected: {
     backgroundColor: '#9ca3af',
+  },
+  // Status text
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statusTextConnected: {
+    color: '#166534',
+  },
+  statusTextConnecting: {
+    color: '#92400e',
+  },
+  statusTextDisconnected: {
+    color: '#6b7280',
   },
 });
