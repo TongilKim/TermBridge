@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  Animated,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import type { Session } from '@termbridge/shared';
+import { useSessionStore } from '../stores/sessionStore';
 
 interface SessionCardProps {
   session: Session & {
@@ -24,10 +30,123 @@ export function SessionCard({ session }: SessionCardProps) {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const swipeableRef = useRef<Swipeable>(null);
+  const { endSession, deleteSession, pendingSessionId, openSwipeableId, setOpenSwipeableId } = useSessionStore();
+  const isPending = pendingSessionId === session.id;
+
+  // Close this swipeable if another one is opened
+  useEffect(() => {
+    if (openSwipeableId !== session.id && openSwipeableId !== null) {
+      swipeableRef.current?.close();
+    }
+  }, [openSwipeableId, session.id]);
+
+  // Close swipeable when pending (loading) starts
+  useEffect(() => {
+    if (isPending) {
+      swipeableRef.current?.close();
+      setOpenSwipeableId(null);
+    }
+  }, [isPending]);
+
+  const handleSwipeableOpen = () => {
+    setOpenSwipeableId(session.id);
+  };
 
   const machine = session.machines;
   const isActive = session.status === 'active';
   const machineOnline = machine?.status === 'online';
+
+  const handleDisconnect = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Disconnect Session',
+      'Are you sure you want to disconnect this session? This will end the CLI session.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            swipeableRef.current?.close();
+            setOpenSwipeableId(null);
+          },
+        },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => {
+            endSession(session.id);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDelete = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Delete Session',
+      'Are you sure you want to delete this session? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            swipeableRef.current?.close();
+            setOpenSwipeableId(null);
+          },
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteSession(session.id);
+          },
+        },
+      ]
+    );
+  };
+
+  const renderRightActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
+    const translateX = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [0, 100],
+      extrapolate: 'clamp',
+    });
+
+    if (isActive) {
+      return (
+        <View style={styles.swipeActions}>
+          <Animated.View style={[styles.actionButton, styles.disconnectButton, { transform: [{ translateX }] }]}>
+            <TouchableOpacity
+              style={styles.actionButtonInner}
+              onPress={handleDisconnect}
+            >
+              <Text style={styles.actionButtonText}>Disconnect</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.swipeActions}>
+        <Animated.View style={[styles.actionButton, styles.deleteButton, { transform: [{ translateX }] }]}>
+          <TouchableOpacity
+            style={styles.actionButtonInner}
+            onPress={handleDelete}
+          >
+            <Text style={styles.actionButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -43,11 +162,12 @@ export function SessionCard({ session }: SessionCardProps) {
     return `${days}d ago`;
   };
 
-  return (
+  const cardContent = (
     <TouchableOpacity
       style={[styles.container, isDark && styles.containerDark]}
       onPress={() => router.push(`/session/${session.id}`)}
       activeOpacity={0.7}
+      disabled={isPending}
     >
       <View style={styles.header}>
         <View style={styles.titleRow}>
@@ -87,7 +207,30 @@ export function SessionCard({ session }: SessionCardProps) {
           </Text>
         )}
       </View>
+
+      {/* Loading overlay */}
+      {isPending && (
+        <View style={[styles.loadingOverlay, isDark && styles.loadingOverlayDark]}>
+          <ActivityIndicator size="small" color={isDark ? '#ffffff' : '#3b82f6'} />
+          <Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
+            {isActive ? 'Disconnecting...' : 'Deleting...'}
+          </Text>
+        </View>
+      )}
     </TouchableOpacity>
+  );
+
+  // Wrap all sessions in Swipeable (active = disconnect, ended = delete)
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      friction={2}
+      rightThreshold={40}
+      onSwipeableWillOpen={handleSwipeableOpen}
+    >
+      {cardContent}
+    </Swipeable>
   );
 }
 
@@ -164,5 +307,60 @@ const styles = StyleSheet.create({
   },
   timestampDark: {
     color: '#6b7280',
+  },
+  // Swipe actions
+  swipeActions: {
+    marginVertical: 6,
+    marginRight: 16,
+    justifyContent: 'center',
+  },
+  actionButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 90,
+    height: '100%',
+    borderRadius: 12,
+  },
+  disconnectButton: {
+    backgroundColor: '#f59e0b',
+  },
+  deleteButton: {
+    backgroundColor: '#ef4444',
+  },
+  actionButtonInner: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  actionButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  // Loading overlay
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  loadingOverlayDark: {
+    backgroundColor: 'rgba(31, 31, 31, 0.9)',
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#3b82f6',
+  },
+  loadingTextDark: {
+    color: '#ffffff',
   },
 });
