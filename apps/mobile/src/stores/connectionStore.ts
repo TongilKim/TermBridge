@@ -38,6 +38,22 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     try {
       set({ state: 'connecting', sessionId, error: null });
 
+      // First check if the session is still active
+      const { data: session, error: sessionError } = await supabase
+        .from('sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError) {
+        throw new Error('Failed to fetch session status');
+      }
+
+      if (session.status !== 'active') {
+        set({ state: 'disconnected', error: null });
+        return;
+      }
+
       // Clean up existing channels
       if (outputChannel) {
         await supabase.removeChannel(outputChannel);
