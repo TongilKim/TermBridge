@@ -6,8 +6,6 @@ import {
   Text,
   StyleSheet,
   useColorScheme,
-  KeyboardAvoidingView,
-  Platform,
   NativeSyntheticEvent,
   TextInputContentSizeChangeEventData,
 } from 'react-native';
@@ -66,81 +64,76 @@ export function InputBar({ disabled }: InputBarProps) {
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <View style={[styles.container, isDark && styles.containerDark]}>
-        {/* Quick actions */}
-        <View style={styles.quickActions}>
-          {QUICK_ACTIONS.map((action) => (
-            <TouchableOpacity
-              key={action.label}
-              style={[
-                styles.quickAction,
-                isDark && styles.quickActionDark,
-                isDisabled && styles.quickActionDisabled,
-              ]}
-              onPress={() => handleQuickAction(action.value)}
-              disabled={isDisabled}
-            >
-              <Text
-                style={[
-                  styles.quickActionText,
-                  isDark && styles.quickActionTextDark,
-                  isDisabled && styles.quickActionTextDisabled,
-                ]}
-              >
-                {action.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Input row */}
-        <View style={styles.inputRow}>
-          <TextInput
-            style={[
-              styles.input,
-              isDark && styles.inputDark,
-              isDisabled && styles.inputDisabled,
-              { height: inputHeight },
-            ]}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Type a message..."
-            placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
-            editable={!isDisabled}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            autoCapitalize="none"
-            autoCorrect={false}
-            multiline={true}
-            textAlignVertical="center"
-            onContentSizeChange={handleContentSizeChange}
-            blurOnSubmit={false}
-          />
+    <View style={[styles.container, isDark && styles.containerDark]}>
+      {/* Quick actions */}
+      <View style={styles.quickActions}>
+        {QUICK_ACTIONS.map((action) => (
           <TouchableOpacity
+            key={action.label}
             style={[
-              styles.sendButton,
-              isDisabled && styles.sendButtonDisabled,
-              !input.trim() && styles.sendButtonEmpty,
+              styles.quickAction,
+              isDark && styles.quickActionDark,
+              isDisabled && styles.quickActionDisabled,
             ]}
-            onPress={handleSend}
-            disabled={isDisabled || !input.trim()}
+            onPress={() => handleQuickAction(action.value)}
+            disabled={isDisabled}
           >
             <Text
               style={[
-                styles.sendButtonText,
-                (isDisabled || !input.trim()) && styles.sendButtonTextDisabled,
+                styles.quickActionText,
+                isDark && styles.quickActionTextDark,
+                isDisabled && styles.quickActionTextDisabled,
               ]}
             >
-              Send
+              {action.label}
             </Text>
           </TouchableOpacity>
-        </View>
+        ))}
       </View>
-    </KeyboardAvoidingView>
+
+      {/* Input row */}
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[
+            styles.input,
+            isDark && styles.inputDark,
+            isDisabled && styles.inputDisabled,
+            { height: inputHeight },
+          ]}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Type a message..."
+          placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
+          editable={!isDisabled}
+          onSubmitEditing={handleSend}
+          returnKeyType="send"
+          autoCapitalize="none"
+          autoCorrect={false}
+          multiline={true}
+          textAlignVertical="center"
+          onContentSizeChange={handleContentSizeChange}
+          blurOnSubmit={false}
+        />
+        <TouchableOpacity
+          style={[
+            styles.sendButton,
+            isDisabled && styles.sendButtonDisabled,
+            !input.trim() && styles.sendButtonEmpty,
+          ]}
+          onPress={handleSend}
+          disabled={isDisabled || !input.trim()}
+        >
+          <Text
+            style={[
+              styles.sendButtonText,
+              (isDisabled || !input.trim()) && styles.sendButtonTextDisabled,
+            ]}
+          >
+            Send
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 

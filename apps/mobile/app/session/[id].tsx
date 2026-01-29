@@ -1,6 +1,13 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, useColorScheme } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  useColorScheme,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
@@ -9,6 +16,7 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
 
   const { connect, disconnect, clearMessages, state } = useConnectionStore();
 
@@ -24,7 +32,11 @@ export default function SessionScreen() {
   }, [id]);
 
   return (
-    <View style={[styles.container, isDark && styles.containerDark]}>
+    <KeyboardAvoidingView
+      style={[styles.container, isDark && styles.containerDark]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
       <Stack.Screen
         options={{
           title: state === 'connected' ? 'Live Session' : 'Session',
@@ -41,8 +53,10 @@ export default function SessionScreen() {
         }}
       />
       <Terminal />
-      <InputBar disabled={state !== 'connected'} />
-    </View>
+      <View style={{ paddingBottom: insets.bottom }}>
+        <InputBar disabled={state !== 'connected'} />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
