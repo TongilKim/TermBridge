@@ -114,6 +114,11 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       seq: ++seq,
     };
 
+    // Add input message to local state so it appears in chat
+    set((state) => ({
+      messages: [...state.messages, message],
+    }));
+
     await inputChannel.send({
       type: 'broadcast',
       event: 'input',

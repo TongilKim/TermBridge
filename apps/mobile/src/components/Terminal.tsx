@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -8,9 +8,16 @@ import {
 } from 'react-native';
 import Anser from 'anser';
 import { useConnectionStore } from '../stores/connectionStore';
+import type { RealtimeMessage } from '@termbridge/shared';
 
 interface TerminalProps {
   maxLines?: number;
+}
+
+interface GroupedMessage {
+  type: 'input' | 'output' | 'system';
+  content: string;
+  timestamp: number;
 }
 
 export function Terminal({ maxLines = 1000 }: TerminalProps) {
@@ -23,23 +30,43 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollViewRef.current) {
-      scrollViewRef.current.scrollToEnd({ animated: false });
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
   }, [messages]);
 
-  // Combine all messages and truncate to maxLines
-  const fullOutput = messages
-    .map((m) => m.content || '')
-    .join('')
-    .split('\n')
-    .slice(-maxLines)
-    .join('\n');
+  // Group consecutive messages of the same type
+  const groupedMessages = useMemo(() => {
+    const groups: GroupedMessage[] = [];
+    let currentGroup: GroupedMessage | null = null;
 
-  // Parse ANSI codes
-  const parsedOutput = Anser.ansiToJson(fullOutput, {
-    json: true,
-    remove_empty: true,
-  });
+    for (const msg of messages) {
+      const msgType = msg.type === 'input' ? 'input' :
+                      msg.type === 'output' ? 'output' : 'system';
+
+      if (currentGroup && currentGroup.type === msgType) {
+        // Append to current group
+        currentGroup.content += msg.content || '';
+      } else {
+        // Start new group
+        if (currentGroup) {
+          groups.push(currentGroup);
+        }
+        currentGroup = {
+          type: msgType,
+          content: msg.content || '',
+          timestamp: msg.timestamp,
+        };
+      }
+    }
+
+    if (currentGroup) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  }, [messages]);
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -60,23 +87,107 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
-        <Text style={[styles.terminalText, isDark && styles.terminalTextDark]}>
-          {parsedOutput.map((part, index) => (
-            <Text
-              key={index}
-              style={[
-                part.fg && { color: getAnsiColor(part.fg, isDark) },
-                part.bg && { backgroundColor: getAnsiColor(part.bg, isDark) },
-                part.decoration === 'bold' && styles.bold,
-                part.decoration === 'italic' && styles.italic,
-                part.decoration === 'underline' && styles.underline,
-              ]}
-            >
-              {part.content}
+        {groupedMessages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+              Send a message to start chatting with Claude
             </Text>
-          ))}
-        </Text>
+          </View>
+        ) : (
+          groupedMessages.map((group, index) => (
+            <MessageBubble
+              key={`${group.timestamp}-${index}`}
+              message={group}
+              isDark={isDark}
+            />
+          ))
+        )}
       </ScrollView>
+    </View>
+  );
+}
+
+interface MessageBubbleProps {
+  message: GroupedMessage;
+  isDark: boolean;
+}
+
+function MessageBubble({ message, isDark }: MessageBubbleProps) {
+  const isUser = message.type === 'input';
+  const isSystem = message.type === 'system';
+
+  // Clean up the content - remove excessive whitespace for user messages
+  const content = isUser
+    ? message.content.trim()
+    : message.content;
+
+  // Skip empty messages
+  if (!content.trim()) {
+    return null;
+  }
+
+  if (isSystem) {
+    return (
+      <View style={styles.systemContainer}>
+        <Text style={[styles.systemText, isDark && styles.systemTextDark]}>
+          {content}
+        </Text>
+      </View>
+    );
+  }
+
+  // Parse ANSI codes for output messages
+  const parsedContent = isUser
+    ? null
+    : Anser.ansiToJson(content, { json: true, remove_empty: true });
+
+  return (
+    <View
+      style={[
+        styles.bubbleContainer,
+        isUser ? styles.bubbleContainerUser : styles.bubbleContainerClaude,
+      ]}
+    >
+      <View
+        style={[
+          styles.bubble,
+          isUser
+            ? [styles.bubbleUser, isDark && styles.bubbleUserDark]
+            : [styles.bubbleClaude, isDark && styles.bubbleClaudeDark],
+        ]}
+      >
+        {isUser ? (
+          <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
+            {content}
+          </Text>
+        ) : (
+          <Text style={[styles.bubbleTextClaude, isDark && styles.bubbleTextClaudeDark]}>
+            {parsedContent?.map((part, index) => (
+              <Text
+                key={index}
+                style={[
+                  part.fg && { color: getAnsiColor(part.fg, isDark) },
+                  part.bg && { backgroundColor: getAnsiColor(part.bg, isDark) },
+                  part.decoration === 'bold' && styles.bold,
+                  part.decoration === 'italic' && styles.italic,
+                  part.decoration === 'underline' && styles.underline,
+                ]}
+              >
+                {part.content}
+              </Text>
+            ))}
+          </Text>
+        )}
+      </View>
+      <Text
+        style={[
+          styles.timestamp,
+          isDark && styles.timestampDark,
+          isUser ? styles.timestampUser : styles.timestampClaude,
+        ]}
+      >
+        {isUser ? 'You' : 'Claude'}
+      </Text>
     </View>
   );
 }
@@ -103,13 +214,13 @@ function getAnsiColor(colorName: string, isDark: boolean): string {
     'bright-white': '#f9fafb',
   };
 
-  return colors[colorName] || (isDark ? '#ffffff' : '#000000');
+  return colors[colorName] || (isDark ? '#e5e5e5' : '#1f2937');
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fafafa',
+    backgroundColor: '#f5f5f5',
   },
   containerDark: {
     backgroundColor: '#0a0a0a',
@@ -140,16 +251,105 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
+    paddingBottom: 20,
   },
-  terminalText: {
-    fontFamily: 'monospace',
-    fontSize: 13,
-    lineHeight: 18,
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  emptyTextDark: {
+    color: '#9ca3af',
+  },
+  // Bubble container
+  bubbleContainer: {
+    marginVertical: 4,
+    maxWidth: '85%',
+  },
+  bubbleContainerUser: {
+    alignSelf: 'flex-end',
+  },
+  bubbleContainerClaude: {
+    alignSelf: 'flex-start',
+  },
+  // Bubble styles
+  bubble: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  bubbleUser: {
+    backgroundColor: '#3b82f6',
+    borderBottomRightRadius: 4,
+  },
+  bubbleUserDark: {
+    backgroundColor: '#2563eb',
+  },
+  bubbleClaude: {
+    backgroundColor: '#ffffff',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  bubbleClaudeDark: {
+    backgroundColor: '#1f1f1f',
+    borderColor: '#333333',
+  },
+  // Text styles
+  bubbleTextUser: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#ffffff',
+  },
+  bubbleTextUserDark: {
+    color: '#ffffff',
+  },
+  bubbleTextClaude: {
+    fontSize: 14,
+    lineHeight: 20,
     color: '#1f2937',
+    fontFamily: 'monospace',
   },
-  terminalTextDark: {
+  bubbleTextClaudeDark: {
     color: '#e5e5e5',
   },
+  // Timestamp / label
+  timestamp: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+  timestampDark: {
+    color: '#6b7280',
+  },
+  timestampUser: {
+    textAlign: 'right',
+    marginRight: 4,
+  },
+  timestampClaude: {
+    textAlign: 'left',
+    marginLeft: 4,
+  },
+  // System message
+  systemContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  systemText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  systemTextDark: {
+    color: '#9ca3af',
+  },
+  // Text decorations
   bold: {
     fontWeight: 'bold',
   },
