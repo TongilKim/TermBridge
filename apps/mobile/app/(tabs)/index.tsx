@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Pressable,
 } from 'react-native';
 import { useSessionStore } from '../../src/stores/sessionStore';
 import { SessionCard } from '../../src/components/SessionCard';
@@ -27,7 +28,7 @@ export default function SessionsScreen() {
   const isDark = colorScheme === 'dark';
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const { sessions, isLoading, fetchSessions, refreshSessions } =
+  const { sessions, isLoading, fetchSessions, refreshSessions, setOpenSwipeableId } =
     useSessionStore();
 
   useEffect(() => {
@@ -79,6 +80,9 @@ export default function SessionsScreen() {
   }, [sessions]);
 
   const toggleSection = (sectionId: string) => {
+    // Close any open swipeable
+    setOpenSwipeableId(null);
+
     setCollapsedSections((prev) => {
       const next = new Set(prev);
       if (next.has(sectionId)) {
@@ -113,7 +117,10 @@ export default function SessionsScreen() {
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       {/* Session Stats */}
-      <View style={[styles.statsContainer, isDark && styles.statsContainerDark]}>
+      <Pressable
+        style={[styles.statsContainer, isDark && styles.statsContainerDark]}
+        onPress={() => setOpenSwipeableId(null)}
+      >
         <View style={styles.statItem}>
           <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>
             {sessionCounts.total}
@@ -140,7 +147,7 @@ export default function SessionsScreen() {
           </View>
           <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Offline</Text>
         </View>
-      </View>
+      </Pressable>
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}

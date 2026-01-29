@@ -162,10 +162,19 @@ export function SessionCard({ session }: SessionCardProps) {
     return `${days}d ago`;
   };
 
+  const handleCardPress = () => {
+    // Close any open swipeable before navigating
+    if (openSwipeableId) {
+      setOpenSwipeableId(null);
+      return;
+    }
+    router.push(`/session/${session.id}`);
+  };
+
   const cardContent = (
     <TouchableOpacity
       style={[styles.container, isDark && styles.containerDark]}
-      onPress={() => router.push(`/session/${session.id}`)}
+      onPress={handleCardPress}
       activeOpacity={0.7}
       disabled={isPending}
     >
