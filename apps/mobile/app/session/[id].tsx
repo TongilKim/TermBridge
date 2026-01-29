@@ -6,9 +6,9 @@ import {
   useColorScheme,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
-import { useHeaderHeight } from '@react-navigation/elements';
+import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
@@ -18,7 +18,6 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
 
   const { connect, disconnect, clearMessages, state } = useConnectionStore();
@@ -38,54 +37,55 @@ export default function SessionScreen() {
     <KeyboardAvoidingView
       style={[styles.container, isDark && styles.containerDark]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
+      keyboardVerticalOffset={0}
     >
-      <Stack.Screen
-        options={{
-          title: 'Session',
-          headerRight: () => (
-            <View
-              style={[
-                styles.statusBadge,
-                state === 'connected'
-                  ? styles.statusBadgeConnected
-                  : state === 'connecting' || state === 'reconnecting'
-                    ? styles.statusBadgeConnecting
-                    : styles.statusBadgeDisconnected,
-              ]}
-            >
-              <View
-                style={[
-                  styles.statusDot,
-                  state === 'connected'
-                    ? styles.statusDotConnected
-                    : state === 'connecting' || state === 'reconnecting'
-                      ? styles.statusDotConnecting
-                      : styles.statusDotDisconnected,
-                ]}
-              />
-              <Text
-                style={[
-                  styles.statusText,
-                  state === 'connected'
-                    ? styles.statusTextConnected
-                    : state === 'connecting' || state === 'reconnecting'
-                      ? styles.statusTextConnecting
-                      : styles.statusTextDisconnected,
-                ]}
-              >
-                {state === 'connected'
-                  ? 'Live'
-                  : state === 'connecting'
-                    ? 'Connecting'
-                    : state === 'reconnecting'
-                      ? 'Reconnecting'
-                      : 'Offline'}
-              </Text>
-            </View>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Custom Header */}
+      <View style={[styles.header, isDark && styles.headerDark, { paddingTop: insets.top }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Text style={[styles.backText, isDark && styles.backTextDark]}>‹ Back</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Session</Text>
+        <View
+          style={[
+            styles.statusBadge,
+            state === 'connected'
+              ? styles.statusBadgeConnected
+              : state === 'connecting' || state === 'reconnecting'
+                ? styles.statusBadgeConnecting
+                : styles.statusBadgeDisconnected,
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              state === 'connected'
+                ? styles.statusDotConnected
+                : state === 'connecting' || state === 'reconnecting'
+                  ? styles.statusDotConnecting
+                  : styles.statusDotDisconnected,
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusText,
+              state === 'connected'
+                ? styles.statusTextConnected
+                : state === 'connecting' || state === 'reconnecting'
+                  ? styles.statusTextConnecting
+                  : styles.statusTextDisconnected,
+            ]}
+          >
+            {state === 'connected'
+              ? 'Online'
+              : state === 'connecting'
+                ? 'Connecting'
+                : state === 'reconnecting'
+                  ? 'Reconnecting'
+                  : 'Offline'}
+          </Text>
+        </View>
+      </View>
       <Terminal />
       <View style={{ paddingBottom: insets.bottom }}>
         <InputBar disabled={state !== 'connected'} />
@@ -102,6 +102,40 @@ const styles = StyleSheet.create({
   containerDark: {
     backgroundColor: '#0a0a0a',
   },
+  // Custom header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  headerDark: {
+    backgroundColor: '#0a0a0a',
+    borderBottomColor: '#374151',
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingRight: 16,
+  },
+  backText: {
+    fontSize: 17,
+    color: '#3b82f6',
+  },
+  backTextDark: {
+    color: '#60a5fa',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  headerTitleDark: {
+    color: '#ffffff',
+  },
   // Status badge
   statusBadge: {
     flexDirection: 'row',
@@ -109,7 +143,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
-    marginRight: 8,
     gap: 6,
   },
   statusBadgeConnected: {
