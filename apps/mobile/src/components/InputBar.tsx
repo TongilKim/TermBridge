@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -8,6 +8,8 @@ import {
   useColorScheme,
   KeyboardAvoidingView,
   Platform,
+  NativeSyntheticEvent,
+  TextInputContentSizeChangeEventData,
 } from 'react-native';
 import { useConnectionStore } from '../stores/connectionStore';
 
@@ -23,8 +25,12 @@ const QUICK_ACTIONS = [
   { label: 'Tab', value: '\t' },
 ];
 
+const MIN_INPUT_HEIGHT = 44;
+const MAX_INPUT_HEIGHT = 120;
+
 export function InputBar({ disabled }: InputBarProps) {
   const [input, setInput] = useState('');
+  const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -35,6 +41,7 @@ export function InputBar({ disabled }: InputBarProps) {
     if (input.trim() && !isDisabled) {
       await sendInput(input + '\n');
       setInput('');
+      setInputHeight(MIN_INPUT_HEIGHT);
     }
   };
 
@@ -43,6 +50,15 @@ export function InputBar({ disabled }: InputBarProps) {
       await sendInput(value);
     }
   };
+
+  const handleContentSizeChange = useCallback(
+    (event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>) => {
+      const contentHeight = event.nativeEvent.contentSize.height;
+      const newHeight = Math.min(Math.max(contentHeight + 16, MIN_INPUT_HEIGHT), MAX_INPUT_HEIGHT);
+      setInputHeight(newHeight);
+    },
+    []
+  );
 
   return (
     <KeyboardAvoidingView
@@ -83,21 +99,27 @@ export function InputBar({ disabled }: InputBarProps) {
               styles.input,
               isDark && styles.inputDark,
               isDisabled && styles.inputDisabled,
+              { height: inputHeight },
             ]}
             value={input}
             onChangeText={setInput}
-            placeholder="Enter command..."
+            placeholder="Type a message..."
             placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
             editable={!isDisabled}
             onSubmitEditing={handleSend}
             returnKeyType="send"
             autoCapitalize="none"
             autoCorrect={false}
+            multiline={true}
+            textAlignVertical="center"
+            onContentSizeChange={handleContentSizeChange}
+            blurOnSubmit={false}
           />
           <TouchableOpacity
             style={[
               styles.sendButton,
               isDisabled && styles.sendButtonDisabled,
+              !input.trim() && styles.sendButtonEmpty,
             ]}
             onPress={handleSend}
             disabled={isDisabled || !input.trim()}
@@ -159,18 +181,20 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 8,
   },
   input: {
     flex: 1,
-    height: 44,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    minHeight: MIN_INPUT_HEIGHT,
+    maxHeight: MAX_INPUT_HEIGHT,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#f3f4f6',
-    fontFamily: 'monospace',
-    fontSize: 14,
+    fontSize: 15,
     color: '#1f2937',
+    lineHeight: 20,
   },
   inputDark: {
     backgroundColor: '#262626',
@@ -182,7 +206,7 @@ const styles = StyleSheet.create({
   sendButton: {
     height: 44,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 22,
     backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -190,12 +214,15 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#9ca3af',
   },
+  sendButtonEmpty: {
+    backgroundColor: '#d1d5db',
+  },
   sendButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   sendButtonTextDisabled: {
-    color: '#e5e7eb',
+    color: '#f3f4f6',
   },
 });

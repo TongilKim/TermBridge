@@ -23,6 +23,56 @@ interface GroupedMessage {
   timestamp: number;
 }
 
+// Avatar components using text-based icons
+function UserAvatar({ isDark }: { isDark: boolean }) {
+  return (
+    <View style={[avatarStyles.avatar, avatarStyles.userAvatar]}>
+      <Text style={avatarStyles.avatarText}>U</Text>
+    </View>
+  );
+}
+
+function ClaudeAvatar({ isDark }: { isDark: boolean }) {
+  return (
+    <View style={[avatarStyles.avatar, avatarStyles.claudeAvatar, isDark && avatarStyles.claudeAvatarDark]}>
+      <Text style={[avatarStyles.avatarText, avatarStyles.claudeAvatarText]}>C</Text>
+    </View>
+  );
+}
+
+// Tool usage badge component
+function ToolBadge({ toolName, isDark }: { toolName: string; isDark: boolean }) {
+  return (
+    <View style={[toolBadgeStyles.badge, isDark && toolBadgeStyles.badgeDark]}>
+      <Text style={[toolBadgeStyles.icon]}>⚡</Text>
+      <Text style={[toolBadgeStyles.text, isDark && toolBadgeStyles.textDark]}>
+        {toolName}
+      </Text>
+    </View>
+  );
+}
+
+// Parse tool usage from content
+function parseToolUsage(content: string): { tools: string[]; cleanContent: string } {
+  const toolPattern = /\[Using tool: ([^\]]+)\]/g;
+  const completedPattern = /\[Tool ([^\]]+) completed\]/g;
+
+  const tools: string[] = [];
+  let match;
+
+  while ((match = toolPattern.exec(content)) !== null) {
+    tools.push(match[1]);
+  }
+
+  // Remove tool messages from content
+  const cleanContent = content
+    .replace(toolPattern, '')
+    .replace(completedPattern, '')
+    .trim();
+
+  return { tools, cleanContent };
+}
+
 export function Terminal({ maxLines = 1000 }: TerminalProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const colorScheme = useColorScheme();
@@ -119,12 +169,15 @@ interface TypingIndicatorProps {
 
 function TypingIndicator({ isDark }: TypingIndicatorProps) {
   return (
-    <View style={styles.bubbleContainerClaude}>
-      <View style={[styles.typingBubble, isDark && styles.typingBubbleDark]}>
-        <ActivityIndicator size="small" color={isDark ? '#9ca3af' : '#6b7280'} />
-        <Text style={[styles.typingText, isDark && styles.typingTextDark]}>
-          Claude is thinking...
-        </Text>
+    <View style={styles.messageRow}>
+      <ClaudeAvatar isDark={isDark} />
+      <View style={styles.bubbleContainerClaude}>
+        <View style={[styles.typingBubble, isDark && styles.typingBubbleDark]}>
+          <ActivityIndicator size="small" color={isDark ? '#9ca3af' : '#6b7280'} />
+          <Text style={[styles.typingText, isDark && styles.typingTextDark]}>
+            Claude is thinking...
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -140,12 +193,17 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
   const isSystem = message.type === 'system';
 
   // Clean up the content - remove excessive whitespace for user messages
-  const content = isUser
+  const rawContent = isUser
     ? message.content.trim()
     : message.content;
 
-  // Skip empty messages
-  if (!content.trim()) {
+  // Parse tool usage for Claude messages
+  const { tools, cleanContent } = isUser
+    ? { tools: [], cleanContent: rawContent }
+    : parseToolUsage(rawContent);
+
+  // Skip empty messages (but show if there are tools)
+  if (!cleanContent.trim() && tools.length === 0) {
     return null;
   }
 
@@ -156,44 +214,68 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
     return (
       <View style={styles.systemContainer}>
         <Text style={[styles.systemText, isDark && styles.systemTextDark]}>
-          {content}
+          {rawContent}
         </Text>
       </View>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.bubbleContainer,
-        isUser ? styles.bubbleContainerUser : styles.bubbleContainerClaude,
-      ]}
-    >
+    <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
+      {!isUser && <ClaudeAvatar isDark={isDark} />}
       <View
         style={[
-          styles.bubble,
-          isUser
-            ? [styles.bubbleUser, isDark && styles.bubbleUserDark]
-            : [styles.bubbleClaude, isDark && styles.bubbleClaudeDark],
+          styles.bubbleContainer,
+          isUser ? styles.bubbleContainerUser : styles.bubbleContainerClaude,
         ]}
       >
-        {isUser ? (
-          <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
-            {content}
-          </Text>
-        ) : (
-          <ClaudeMessage content={content} isDark={isDark} />
+        {/* Tool badges */}
+        {tools.length > 0 && (
+          <View style={styles.toolBadgesContainer}>
+            {tools.map((tool, index) => (
+              <ToolBadge key={index} toolName={tool} isDark={isDark} />
+            ))}
+          </View>
         )}
+
+        {/* Message bubble */}
+        {cleanContent.trim() && (
+          <View
+            style={[
+              styles.bubble,
+              isUser
+                ? [styles.bubbleUser, isDark && styles.bubbleUserDark]
+                : [styles.bubbleClaude, isDark && styles.bubbleClaudeDark],
+            ]}
+          >
+            {isUser ? (
+              <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
+                {cleanContent}
+              </Text>
+            ) : (
+              <ClaudeMessage content={cleanContent} isDark={isDark} />
+            )}
+          </View>
+        )}
+
+        {/* Timestamp and status */}
+        <View style={[styles.timestampRow, isUser && styles.timestampRowUser]}>
+          <Text
+            style={[
+              styles.timestamp,
+              isDark && styles.timestampDark,
+            ]}
+          >
+            {isUser ? 'You' : 'Claude'} · {formattedTime}
+          </Text>
+          {isUser && (
+            <Text style={[styles.statusIndicator, isDark && styles.statusIndicatorDark]}>
+              ✓
+            </Text>
+          )}
+        </View>
       </View>
-      <Text
-        style={[
-          styles.timestamp,
-          isDark && styles.timestampDark,
-          isUser ? styles.timestampUser : styles.timestampClaude,
-        ]}
-      >
-        {isUser ? 'You' : 'Claude'} · {formattedTime}
-      </Text>
+      {isUser && <UserAvatar isDark={isDark} />}
     </View>
   );
 }
@@ -365,6 +447,65 @@ function formatTimestamp(timestamp: number): string {
   return `${month}/${day} ${timeStr}`;
 }
 
+const avatarStyles = StyleSheet.create({
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  userAvatar: {
+    backgroundColor: '#3b82f6',
+  },
+  claudeAvatar: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  claudeAvatarDark: {
+    backgroundColor: '#262626',
+    borderColor: '#404040',
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  claudeAvatarText: {
+    color: '#d97706',
+  },
+});
+
+const toolBadgeStyles = StyleSheet.create({
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 6,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  badgeDark: {
+    backgroundColor: '#422006',
+  },
+  icon: {
+    fontSize: 10,
+  },
+  text: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#92400e',
+  },
+  textDark: {
+    color: '#fbbf24',
+  },
+});
+
 const codeBlockStyles = StyleSheet.create({
   container: {
     marginVertical: 8,
@@ -471,16 +612,33 @@ const styles = StyleSheet.create({
   emptyTextDark: {
     color: '#9ca3af',
   },
+  // Message row with avatar
+  messageRow: {
+    flexDirection: 'row',
+    marginVertical: 4,
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  messageRowUser: {
+    justifyContent: 'flex-end',
+  },
   // Bubble container
   bubbleContainer: {
-    marginVertical: 4,
-    maxWidth: '85%',
+    maxWidth: '75%',
+    flexShrink: 1,
   },
   bubbleContainerUser: {
-    alignSelf: 'flex-end',
+    alignItems: 'flex-end',
   },
   bubbleContainerClaude: {
-    alignSelf: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  // Tool badges container
+  toolBadgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 4,
   },
   // Bubble styles
   bubble: {
@@ -539,22 +697,30 @@ const styles = StyleSheet.create({
   bubbleTextUserDark: {
     color: '#ffffff',
   },
-  // Timestamp / label
+  // Timestamp row
+  timestampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  timestampRowUser: {
+    justifyContent: 'flex-end',
+  },
   timestamp: {
     fontSize: 11,
     color: '#9ca3af',
-    marginTop: 4,
   },
   timestampDark: {
     color: '#6b7280',
   },
-  timestampUser: {
-    textAlign: 'right',
-    marginRight: 4,
+  // Status indicator
+  statusIndicator: {
+    fontSize: 11,
+    color: '#22c55e',
   },
-  timestampClaude: {
-    textAlign: 'left',
-    marginLeft: 4,
+  statusIndicatorDark: {
+    color: '#4ade80',
   },
   // System message
   systemContainer: {
