@@ -11,6 +11,7 @@ import {
   NativeSyntheticEvent,
   TextInputContentSizeChangeEventData,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useConnectionStore } from '../stores/connectionStore';
 
 interface InputBarProps {
@@ -39,6 +40,8 @@ export function InputBar({ disabled }: InputBarProps) {
 
   const handleSend = async () => {
     if (input.trim() && !isDisabled) {
+      // Haptic feedback on send
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await sendInput(input + '\n');
       setInput('');
       setInputHeight(MIN_INPUT_HEIGHT);
@@ -47,6 +50,8 @@ export function InputBar({ disabled }: InputBarProps) {
 
   const handleQuickAction = async (value: string) => {
     if (!isDisabled) {
+      // Haptic feedback on quick action
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await sendInput(value);
     }
   };

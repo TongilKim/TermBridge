@@ -7,9 +7,11 @@ import {
   useColorScheme,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 import { useConnectionStore } from '../stores/connectionStore';
 import type { RealtimeMessage } from '@termbridge/shared';
 
@@ -149,17 +151,54 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
         ) : (
           <>
             {groupedMessages.map((group, index) => (
-              <MessageBubble
-                key={`${group.timestamp}-${index}`}
-                message={group}
-                isDark={isDark}
-              />
+              <AnimatedBubble key={`${group.timestamp}-${index}`}>
+                <MessageBubble
+                  message={group}
+                  isDark={isDark}
+                />
+              </AnimatedBubble>
             ))}
-            {isTyping && <TypingIndicator isDark={isDark} />}
+            {isTyping && (
+              <AnimatedBubble>
+                <TypingIndicator isDark={isDark} />
+              </AnimatedBubble>
+            )}
           </>
         )}
       </ScrollView>
     </View>
+  );
+}
+
+// Animated wrapper for fade-in effect
+function AnimatedBubble({ children }: { children: React.ReactNode }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }],
+      }}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -287,6 +326,7 @@ interface ClaudeMessageProps {
 
 function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
   const copyToClipboard = useCallback(async (text: string) => {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await Clipboard.setStringAsync(text);
   }, []);
 
