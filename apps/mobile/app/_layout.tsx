@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack, Redirect, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme, View, ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '../src/stores/authStore';
 
 function useProtectedRoute(user: any, isLoading: boolean) {
@@ -41,7 +42,7 @@ export default function RootLayout() {
   const redirectTo = useProtectedRoute(user, isLoading);
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -62,6 +63,7 @@ export default function RootLayout() {
           options={{
             title: 'Session',
             presentation: 'card',
+            headerBackButtonDisplayMode: 'minimal',
           }}
         />
       </Stack>
@@ -82,6 +84,6 @@ export default function RootLayout() {
           <ActivityIndicator size="large" color="#3b82f6" />
         </View>
       )}
-    </>
+    </GestureHandlerRootView>
   );
 }
