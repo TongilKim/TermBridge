@@ -200,6 +200,13 @@ export default function SessionsScreen() {
           />
         }
         stickySectionHeadersEnabled={false}
+        onScrollBeginDrag={() => setOpenSwipeableId(null)}
+        ListFooterComponent={
+          <Pressable
+            style={styles.listFooter}
+            onPress={() => setOpenSwipeableId(null)}
+          />
+        }
       />
     </View>
   );
@@ -224,6 +231,11 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingVertical: 8,
+    flexGrow: 1,
+  },
+  listFooter: {
+    flex: 1,
+    minHeight: 200,
   },
   // Session stats
   statsContainer: {
