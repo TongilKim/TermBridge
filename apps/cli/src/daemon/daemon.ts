@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PtyManager } from './pty.js';
+import { SdkSession } from './sdk-session.js';
 import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { RealtimeClient } from '../realtime/client.js';
@@ -12,15 +12,13 @@ export interface DaemonOptions {
   userId: string;
   machineId?: string;
   machineName?: string;
-  command: string;
-  args: string[];
   cwd: string;
   hybrid?: boolean;
 }
 
 export class Daemon extends EventEmitter {
   private options: DaemonOptions;
-  private ptyManager: PtyManager;
+  private sdkSession: SdkSession;
   private sessionManager: SessionManager;
   private machineManager: MachineManager;
   private realtimeClient: RealtimeClient | null = null;
@@ -32,10 +30,14 @@ export class Daemon extends EventEmitter {
     super();
     this.options = options;
 
-    this.ptyManager = new PtyManager();
+    this.sdkSession = new SdkSession({
+      cwd: options.cwd,
+    });
+
     this.sessionManager = new SessionManager({
       supabase: options.supabase,
     });
+
     this.machineManager = new MachineManager({
       supabase: options.supabase,
     });
@@ -65,8 +67,8 @@ export class Daemon extends EventEmitter {
       sessionId: this.session.id,
     });
 
-    // Wire up PTY output to broadcast
-    this.ptyManager.on('output', async (data: string) => {
+    // Wire up SDK session output to broadcast
+    this.sdkSession.on('output', async (data: string) => {
       // Hybrid mode: output to local stdout
       if (this.options.hybrid !== false) {
         process.stdout.write(data);
@@ -85,16 +87,25 @@ export class Daemon extends EventEmitter {
       this.checkNotificationTriggers(data);
     });
 
-    // Wire up PTY exit
-    this.ptyManager.on('exit', async (code: number) => {
-      this.emit('exit', code);
-      await this.stop();
+    this.sdkSession.on('error', (error: Error) => {
+      this.emit('error', error);
+    });
+
+    this.sdkSession.on('complete', () => {
+      // Session query completed, ready for next input
+      if (this.options.hybrid !== false) {
+        process.stdout.write('\n> ');
+      }
     });
 
     // Wire up input from mobile
-    this.realtimeClient.on('input', (message: RealtimeMessage) => {
+    this.realtimeClient.on('input', async (message: RealtimeMessage) => {
       if (message.content) {
-        this.ptyManager.write(message.content);
+        // Remove trailing newline/carriage return for SDK
+        const prompt = message.content.replace(/[\r\n]+$/, '');
+        if (prompt.trim()) {
+          await this.sdkSession.sendPrompt(prompt);
+        }
       }
     });
 
@@ -108,12 +119,10 @@ export class Daemon extends EventEmitter {
       mobileSyncEnabled: this.realtimeClient?.isRealtimeEnabled() ?? false,
     });
 
-    // Start PTY (after emitting started so success message shows first)
-    await this.ptyManager.spawn(
-      this.options.command,
-      this.options.args,
-      this.options.cwd
-    );
+    // Show initial prompt
+    if (this.options.hybrid !== false) {
+      process.stdout.write('\n[TermBridge] Ready for input.\n> ');
+    }
   }
 
   async stop(): Promise<void> {
@@ -123,8 +132,8 @@ export class Daemon extends EventEmitter {
 
     this.running = false;
 
-    // Kill PTY
-    this.ptyManager.kill();
+    // Cancel any ongoing SDK operation
+    this.sdkSession.cancel();
 
     // End session
     if (this.session) {
@@ -144,12 +153,8 @@ export class Daemon extends EventEmitter {
     this.emit('stopped');
   }
 
-  write(data: string): void {
-    this.ptyManager.write(data);
-  }
-
-  resize(cols: number, rows: number): void {
-    this.ptyManager.resize(cols, rows);
+  async sendPrompt(prompt: string): Promise<void> {
+    await this.sdkSession.sendPrompt(prompt);
   }
 
   isRunning(): boolean {

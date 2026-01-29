@@ -9,7 +9,6 @@ config({ path: resolve(__dirname, '../.env') });
 // Library exports
 export { Config, getConfig } from './utils/config.js';
 export { Logger, getLogger } from './utils/logger.js';
-export { PtyManager } from './daemon/pty.js';
 export { ConnectionManager } from './realtime/connection.js';
 export { RealtimeClient } from './realtime/client.js';
 export { MessageHandler } from './realtime/handlers.js';

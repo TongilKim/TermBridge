@@ -1,20 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventEmitter } from 'events';
 
-// Mock all dependencies before importing Daemon
-vi.mock('node-pty', () => ({
-  spawn: vi.fn(() => ({
-    onData: vi.fn(),
-    onExit: vi.fn(),
-    write: vi.fn(),
-    resize: vi.fn(),
-    kill: vi.fn(),
-  })),
+// Mock Claude Agent SDK
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: vi.fn(),
 }));
 
 import { Daemon } from '../daemon/daemon.js';
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
-import { NOTIFICATION_TYPES } from '@termbridge/shared';
 
 describe('Daemon', () => {
   let mockSupabase: Partial<SupabaseClient>;
@@ -126,8 +118,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -138,8 +128,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -154,8 +142,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -170,8 +156,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -186,8 +170,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -208,8 +190,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -224,8 +204,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -240,8 +218,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -258,8 +234,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -276,8 +250,6 @@ describe('Daemon', () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'echo',
-      args: ['hello'],
       cwd: '/home/user',
     });
 
@@ -286,33 +258,15 @@ describe('Daemon', () => {
     await expect(daemon.start()).rejects.toThrow('Daemon is already running');
   });
 
-  it('should allow write() to send input to PTY', async () => {
+  it('should have sendPrompt method', async () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
-      command: 'cat',
-      args: [],
       cwd: '/home/user',
     });
 
     await daemon.start();
 
-    // Should not throw
-    expect(() => daemon!.write('test input')).not.toThrow();
-  });
-
-  it('should allow resize() to change PTY dimensions', async () => {
-    daemon = new Daemon({
-      supabase: mockSupabase as SupabaseClient,
-      userId: 'user-456',
-      command: 'cat',
-      args: [],
-      cwd: '/home/user',
-    });
-
-    await daemon.start();
-
-    // Should not throw
-    expect(() => daemon!.resize(80, 24)).not.toThrow();
+    expect(typeof daemon.sendPrompt).toBe('function');
   });
 });

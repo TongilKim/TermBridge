@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
+import * as readline from 'readline';
 import { Daemon } from '../daemon/daemon.js';
 import { Config } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
@@ -24,8 +25,7 @@ export function createStartCommand(): Command {
     .description('Start a Claude Code session')
     .option('-d, --daemon', 'Run in background (daemon mode)')
     .option('-n, --name <name>', 'Machine name')
-    .argument('[command...]', 'Command to run', ['claude'])
-    .action(async (args: string[], options: StartOptions) => {
+    .action(async (options: StartOptions) => {
       const config = new Config();
       const logger = new Logger();
       const spinner = new Spinner('Starting TermBridge...');
@@ -41,14 +41,15 @@ export function createStartCommand(): Command {
             params: {
               eventsPerSecond: 10,
             },
-            timeout: 30000, // 30 second timeout for WebSocket connection
+            timeout: 30000,
           },
         });
 
         // Restore session from stored tokens
         const sessionTokens = config.getSessionTokens();
         if (!sessionTokens) {
-          logger.error('Not authenticated. Run "termbridge login" first.');
+          spinner.fail('Not authenticated');
+          logger.error('Run "termbridge login" first.');
           process.exit(1);
         }
 
@@ -80,17 +81,11 @@ export function createStartCommand(): Command {
 
         spinner.update('Registering machine...');
 
-        const commandArgs = args.length > 0 ? args : ['claude'];
-        const cmd = commandArgs[0] ?? 'claude';
-        const cmdArgs = commandArgs.slice(1);
-
         const daemon = new Daemon({
           supabase,
           userId: user.id,
           machineId: config.getMachineId(),
           machineName: options.name,
-          command: cmd,
-          args: cmdArgs,
           cwd: process.cwd(),
           hybrid: !options.daemon,
         });
@@ -111,6 +106,9 @@ export function createStartCommand(): Command {
             logger.warn('  Mobile sync: Disabled (check Supabase Realtime settings)');
           }
           logger.info('');
+          logger.info('Type your prompts below or send from mobile app.');
+          logger.info('Type "exit" to quit.');
+          logger.info('');
         });
 
         daemon.on('notification', ({ type, message }) => {
@@ -118,55 +116,54 @@ export function createStartCommand(): Command {
         });
 
         daemon.on('stopped', () => {
-          // Restore terminal to normal mode
-          if (process.stdin.isTTY) {
-            process.stdin.setRawMode(false);
-          }
           logger.info('Session ended');
+          process.exit(0);
+        });
+
+        daemon.on('error', (error: Error) => {
+          logger.error(`Error: ${error.message}`);
         });
 
         // Handle process signals
         process.on('SIGINT', async () => {
-          if (process.stdin.isTTY) {
-            process.stdin.setRawMode(false);
-          }
+          console.log('\nShutting down...');
           await daemon.stop();
           process.exit(0);
         });
 
         process.on('SIGTERM', async () => {
-          if (process.stdin.isTTY) {
-            process.stdin.setRawMode(false);
-          }
           await daemon.stop();
           process.exit(0);
         });
 
         await daemon.start();
 
-        // If not daemon mode, pipe stdin to PTY
+        // If not daemon mode, read local input
         if (!options.daemon) {
-          // Set raw mode if TTY is available
-          if (process.stdin.isTTY) {
-            process.stdin.setRawMode(true);
-          }
-
-          // Resume stdin to receive data
-          process.stdin.resume();
-
-          process.stdin.on('data', (data) => {
-            daemon.write(data.toString());
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
           });
 
-          // Handle resize (only works with TTY)
-          if (process.stdout.isTTY) {
-            process.stdout.on('resize', () => {
-              daemon.resize(
-                process.stdout.columns || 80,
-                process.stdout.rows || 24
-              );
+          const promptForInput = () => {
+            rl.question('', async (input) => {
+              const trimmed = input.trim();
+
+              if (trimmed.toLowerCase() === 'exit') {
+                await daemon.stop();
+                rl.close();
+                return;
+              }
+
+              if (trimmed) {
+                await daemon.sendPrompt(trimmed);
+              }
+
+              promptForInput();
             });
-          }
+          };
+
+          promptForInput();
         }
       } catch (error) {
         spinner.fail('Failed to start');
