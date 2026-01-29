@@ -34,9 +34,9 @@ export function SessionCard({ session }: SessionCardProps) {
   const { endSession, deleteSession, pendingSessionId, openSwipeableId, setOpenSwipeableId } = useSessionStore();
   const isPending = pendingSessionId === session.id;
 
-  // Close this swipeable if another one is opened
+  // Close this swipeable if another one is opened or if cleared
   useEffect(() => {
-    if (openSwipeableId !== session.id && openSwipeableId !== null) {
+    if (openSwipeableId !== session.id) {
       swipeableRef.current?.close();
     }
   }, [openSwipeableId, session.id]);
