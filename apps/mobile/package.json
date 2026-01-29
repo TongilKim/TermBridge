@@ -12,6 +12,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "@react-navigation/elements": "^2.9.5",
     "@supabase/supabase-js": "^2.39.0",
     "anser": "^2.1.1",
     "expo": "~54.0.32",
