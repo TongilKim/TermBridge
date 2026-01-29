@@ -12,6 +12,7 @@ interface ConnectionStoreState {
   messages: RealtimeMessage[];
   lastSeq: number;
   error: string | null;
+  isTyping: boolean;
 
   // Actions
   connect: (sessionId: string) => Promise<void>;
@@ -31,6 +32,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   messages: [],
   lastSeq: 0,
   error: null,
+  isTyping: false,
 
   connect: async (sessionId: string) => {
     try {
@@ -53,6 +55,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         set((state) => ({
           messages: [...state.messages, message],
           lastSeq: message.seq,
+          isTyping: false,
         }));
       });
 
@@ -115,8 +118,10 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     };
 
     // Add input message to local state so it appears in chat
+    // Set isTyping to true while waiting for Claude's response
     set((state) => ({
       messages: [...state.messages, message],
+      isTyping: true,
     }));
 
     await inputChannel.send({

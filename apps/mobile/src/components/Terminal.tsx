@@ -1,12 +1,15 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
   Text,
   StyleSheet,
   useColorScheme,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import Anser from 'anser';
+import Markdown from 'react-native-markdown-display';
+import * as Clipboard from 'expo-clipboard';
 import { useConnectionStore } from '../stores/connectionStore';
 import type { RealtimeMessage } from '@termbridge/shared';
 
@@ -25,7 +28,7 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { messages, state } = useConnectionStore();
+  const { messages, state, isTyping } = useConnectionStore();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -34,7 +37,7 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
   // Group consecutive messages of the same type
   const groupedMessages = useMemo(() => {
@@ -87,22 +90,42 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
-        {groupedMessages.length === 0 ? (
+        {groupedMessages.length === 0 && !isTyping ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
               Send a message to start chatting with Claude
             </Text>
           </View>
         ) : (
-          groupedMessages.map((group, index) => (
-            <MessageBubble
-              key={`${group.timestamp}-${index}`}
-              message={group}
-              isDark={isDark}
-            />
-          ))
+          <>
+            {groupedMessages.map((group, index) => (
+              <MessageBubble
+                key={`${group.timestamp}-${index}`}
+                message={group}
+                isDark={isDark}
+              />
+            ))}
+            {isTyping && <TypingIndicator isDark={isDark} />}
+          </>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+interface TypingIndicatorProps {
+  isDark: boolean;
+}
+
+function TypingIndicator({ isDark }: TypingIndicatorProps) {
+  return (
+    <View style={styles.bubbleContainerClaude}>
+      <View style={[styles.typingBubble, isDark && styles.typingBubbleDark]}>
+        <ActivityIndicator size="small" color={isDark ? '#9ca3af' : '#6b7280'} />
+        <Text style={[styles.typingText, isDark && styles.typingTextDark]}>
+          Claude is thinking...
+        </Text>
+      </View>
     </View>
   );
 }
@@ -126,6 +149,9 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
     return null;
   }
 
+  // Format timestamp
+  const formattedTime = formatTimestamp(message.timestamp);
+
   if (isSystem) {
     return (
       <View style={styles.systemContainer}>
@@ -135,11 +161,6 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
       </View>
     );
   }
-
-  // Parse ANSI codes for output messages
-  const parsedContent = isUser
-    ? null
-    : Anser.ansiToJson(content, { json: true, remove_empty: true });
 
   return (
     <View
@@ -161,22 +182,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
             {content}
           </Text>
         ) : (
-          <Text style={[styles.bubbleTextClaude, isDark && styles.bubbleTextClaudeDark]}>
-            {parsedContent?.map((part, index) => (
-              <Text
-                key={index}
-                style={[
-                  part.fg && { color: getAnsiColor(part.fg, isDark) },
-                  part.bg && { backgroundColor: getAnsiColor(part.bg, isDark) },
-                  part.decoration === 'bold' && styles.bold,
-                  part.decoration === 'italic' && styles.italic,
-                  part.decoration === 'underline' && styles.underline,
-                ]}
-              >
-                {part.content}
-              </Text>
-            ))}
-          </Text>
+          <ClaudeMessage content={content} isDark={isDark} />
         )}
       </View>
       <Text
@@ -186,36 +192,234 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           isUser ? styles.timestampUser : styles.timestampClaude,
         ]}
       >
-        {isUser ? 'You' : 'Claude'}
+        {isUser ? 'You' : 'Claude'} · {formattedTime}
       </Text>
     </View>
   );
 }
 
-function getAnsiColor(colorName: string, isDark: boolean): string {
-  const colors: Record<string, string> = {
-    // Standard colors
-    black: isDark ? '#000000' : '#000000',
-    red: '#ef4444',
-    green: '#22c55e',
-    yellow: '#eab308',
-    blue: '#3b82f6',
-    magenta: '#a855f7',
-    cyan: '#06b6d4',
-    white: isDark ? '#ffffff' : '#1f2937',
-    // Bright colors
-    'bright-black': '#6b7280',
-    'bright-red': '#f87171',
-    'bright-green': '#4ade80',
-    'bright-yellow': '#fde047',
-    'bright-blue': '#60a5fa',
-    'bright-magenta': '#c084fc',
-    'bright-cyan': '#22d3ee',
-    'bright-white': '#f9fafb',
-  };
-
-  return colors[colorName] || (isDark ? '#e5e5e5' : '#1f2937');
+interface ClaudeMessageProps {
+  content: string;
+  isDark: boolean;
 }
+
+function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
+  const copyToClipboard = useCallback(async (text: string) => {
+    await Clipboard.setStringAsync(text);
+  }, []);
+
+  // Check if content contains code blocks
+  const hasCodeBlock = content.includes('```');
+
+  // Markdown styles
+  const markdownStyles = useMemo(() => ({
+    body: {
+      color: isDark ? '#e5e5e5' : '#1f2937',
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    paragraph: {
+      marginTop: 0,
+      marginBottom: 8,
+    },
+    heading1: {
+      color: isDark ? '#ffffff' : '#111827',
+      fontSize: 20,
+      fontWeight: 'bold' as const,
+      marginBottom: 8,
+      marginTop: 12,
+    },
+    heading2: {
+      color: isDark ? '#ffffff' : '#111827',
+      fontSize: 18,
+      fontWeight: 'bold' as const,
+      marginBottom: 6,
+      marginTop: 10,
+    },
+    heading3: {
+      color: isDark ? '#ffffff' : '#111827',
+      fontSize: 16,
+      fontWeight: 'bold' as const,
+      marginBottom: 4,
+      marginTop: 8,
+    },
+    strong: {
+      fontWeight: 'bold' as const,
+    },
+    em: {
+      fontStyle: 'italic' as const,
+    },
+    code_inline: {
+      backgroundColor: isDark ? '#374151' : '#f3f4f6',
+      color: isDark ? '#fbbf24' : '#dc2626',
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontFamily: 'monospace',
+      fontSize: 13,
+    },
+    code_block: {
+      backgroundColor: isDark ? '#1e1e1e' : '#1f2937',
+      color: isDark ? '#d4d4d4' : '#e5e7eb',
+      padding: 12,
+      borderRadius: 8,
+      fontFamily: 'monospace',
+      fontSize: 13,
+      marginVertical: 8,
+      overflow: 'hidden' as const,
+    },
+    fence: {
+      backgroundColor: isDark ? '#1e1e1e' : '#1f2937',
+      color: isDark ? '#d4d4d4' : '#e5e7eb',
+      padding: 12,
+      borderRadius: 8,
+      fontFamily: 'monospace',
+      fontSize: 13,
+      marginVertical: 8,
+    },
+    blockquote: {
+      backgroundColor: isDark ? '#374151' : '#f9fafb',
+      borderLeftColor: isDark ? '#6b7280' : '#d1d5db',
+      borderLeftWidth: 4,
+      paddingLeft: 12,
+      paddingVertical: 4,
+      marginVertical: 8,
+    },
+    list_item: {
+      marginBottom: 4,
+    },
+    bullet_list: {
+      marginBottom: 8,
+    },
+    ordered_list: {
+      marginBottom: 8,
+    },
+    link: {
+      color: '#3b82f6',
+    },
+    hr: {
+      backgroundColor: isDark ? '#4b5563' : '#e5e7eb',
+      height: 1,
+      marginVertical: 12,
+    },
+  }), [isDark]);
+
+  // Custom code block renderer with copy button
+  const renderCodeBlock = useCallback((node: any, children: any, parent: any, styles: any) => {
+    const codeContent = node.content || '';
+    return (
+      <View key={node.key} style={codeBlockStyles.container}>
+        <View style={[codeBlockStyles.header, isDark && codeBlockStyles.headerDark]}>
+          <Text style={[codeBlockStyles.language, isDark && codeBlockStyles.languageDark]}>
+            {node.sourceInfo || 'code'}
+          </Text>
+          <TouchableOpacity
+            onPress={() => copyToClipboard(codeContent)}
+            style={codeBlockStyles.copyButton}
+          >
+            <Text style={[codeBlockStyles.copyText, isDark && codeBlockStyles.copyTextDark]}>
+              Copy
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[codeBlockStyles.codeContainer, isDark && codeBlockStyles.codeContainerDark]}>
+          <Text style={[codeBlockStyles.code, isDark && codeBlockStyles.codeDark]}>
+            {codeContent}
+          </Text>
+        </View>
+      </View>
+    );
+  }, [isDark, copyToClipboard]);
+
+  return (
+    <Markdown
+      style={markdownStyles}
+      rules={{
+        fence: renderCodeBlock,
+        code_block: renderCodeBlock,
+      }}
+    >
+      {content}
+    </Markdown>
+  );
+}
+
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const timeStr = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+  if (isToday) {
+    return timeStr;
+  }
+
+  // If not today, include the date
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}/${day} ${timeStr}`;
+}
+
+const codeBlockStyles = StyleSheet.create({
+  container: {
+    marginVertical: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  headerDark: {
+    backgroundColor: '#2d2d2d',
+  },
+  language: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontFamily: 'monospace',
+  },
+  languageDark: {
+    color: '#9ca3af',
+  },
+  copyButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  copyText: {
+    color: '#9ca3af',
+    fontSize: 12,
+  },
+  copyTextDark: {
+    color: '#9ca3af',
+  },
+  codeContainer: {
+    backgroundColor: '#1f2937',
+    padding: 12,
+  },
+  codeContainerDark: {
+    backgroundColor: '#1e1e1e',
+  },
+  code: {
+    color: '#e5e7eb',
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  codeDark: {
+    color: '#d4d4d4',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -301,6 +505,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f1f1f',
     borderColor: '#333333',
   },
+  // Typing indicator
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    gap: 8,
+  },
+  typingBubbleDark: {
+    backgroundColor: '#1f1f1f',
+    borderColor: '#333333',
+  },
+  typingText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
+  typingTextDark: {
+    color: '#9ca3af',
+  },
   // Text styles
   bubbleTextUser: {
     fontSize: 15,
@@ -309,15 +538,6 @@ const styles = StyleSheet.create({
   },
   bubbleTextUserDark: {
     color: '#ffffff',
-  },
-  bubbleTextClaude: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#1f2937',
-    fontFamily: 'monospace',
-  },
-  bubbleTextClaudeDark: {
-    color: '#e5e5e5',
   },
   // Timestamp / label
   timestamp: {
@@ -348,15 +568,5 @@ const styles = StyleSheet.create({
   },
   systemTextDark: {
     color: '#9ca3af',
-  },
-  // Text decorations
-  bold: {
-    fontWeight: 'bold',
-  },
-  italic: {
-    fontStyle: 'italic',
-  },
-  underline: {
-    textDecorationLine: 'underline',
   },
 });

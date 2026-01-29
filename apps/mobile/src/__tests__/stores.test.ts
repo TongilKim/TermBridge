@@ -159,12 +159,36 @@ describe('Store Logic', () => {
         messages: [],
         lastSeq: 0,
         error: null,
+        isTyping: false,
       };
 
       expect(initialState.state).toBe('disconnected');
       expect(initialState.sessionId).toBeNull();
       expect(initialState.messages).toEqual([]);
       expect(initialState.lastSeq).toBe(0);
+      expect(initialState.isTyping).toBe(false);
+    });
+
+    it('should set isTyping true when sending input', () => {
+      let isTyping = false;
+
+      const sendInput = () => {
+        isTyping = true;
+      };
+
+      sendInput();
+      expect(isTyping).toBe(true);
+    });
+
+    it('should set isTyping false when receiving output', () => {
+      let isTyping = true;
+
+      const receiveOutput = () => {
+        isTyping = false;
+      };
+
+      receiveOutput();
+      expect(isTyping).toBe(false);
     });
 
     it('should clear messages', () => {
