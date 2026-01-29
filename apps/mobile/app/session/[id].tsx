@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
@@ -17,6 +18,7 @@ export default function SessionScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const { connect, disconnect, clearMessages, state } = useConnectionStore();
 
@@ -53,7 +55,9 @@ export default function SessionScreen() {
         }}
       />
       <Terminal />
-      <InputBar disabled={state !== 'connected'} />
+      <View style={{ paddingBottom: insets.bottom }}>
+        <InputBar disabled={state !== 'connected'} />
+      </View>
     </KeyboardAvoidingView>
   );
 }
