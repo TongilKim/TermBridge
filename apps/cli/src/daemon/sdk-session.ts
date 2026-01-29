@@ -59,10 +59,7 @@ export class SdkSession extends EventEmitter {
             }
           }
         } else if (message.type === 'result') {
-          // Final result
-          if ('subtype' in message && message.subtype === 'success' && 'result' in message) {
-            this.emit('output', '\n' + message.result + '\n');
-          }
+          // Final result - don't output result.result as it duplicates assistant messages
           this.emit('complete');
         } else if (message.type === 'tool_progress') {
           // Tool progress (tool being used)
