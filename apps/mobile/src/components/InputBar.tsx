@@ -7,8 +7,13 @@ import {
   useColorScheme,
   NativeSyntheticEvent,
   TextInputContentSizeChangeEventData,
+  Alert,
+  Image,
+  ScrollView,
+  Text,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useConnectionStore } from '../stores/connectionStore';
 
 interface InputBarProps {
@@ -21,6 +26,7 @@ const MAX_INPUT_HEIGHT = 120;
 export function InputBar({ disabled }: InputBarProps) {
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -30,10 +36,59 @@ export function InputBar({ disabled }: InputBarProps) {
   const handleSend = async () => {
     if (input.trim() && !isDisabled) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // TODO: Handle image attachments when sending
       await sendInput(input + '\n');
       setInput('');
+      setSelectedImages([]);
       setInputHeight(MIN_INPUT_HEIGHT);
     }
+  };
+
+  const handleAttachment = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    Alert.alert(
+      'Add Attachment',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (permission.granted) {
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                quality: 0.8,
+              });
+              if (!result.canceled && result.assets[0]) {
+                setSelectedImages([...selectedImages, result.assets[0].uri]);
+              }
+            }
+          },
+        },
+        {
+          text: 'Choose from Library',
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (permission.granted) {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                const uris = result.assets.map(asset => asset.uri);
+                setSelectedImages([...selectedImages, ...uris]);
+              }
+            }
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const handleContentSizeChange = useCallback(
@@ -46,6 +101,10 @@ export function InputBar({ disabled }: InputBarProps) {
   );
 
   const canSend = input.trim() && !isDisabled;
+
+  const removeImage = (index: number) => {
+    setSelectedImages(selectedImages.filter((_, i) => i !== index));
+  };
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -72,9 +131,42 @@ export function InputBar({ disabled }: InputBarProps) {
           blurOnSubmit={false}
         />
 
+        {/* Image previews */}
+        {selectedImages.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.imagePreviewContainer}
+            contentContainerStyle={styles.imagePreviewContent}
+          >
+            {selectedImages.map((uri, index) => (
+              <View key={index} style={styles.imagePreviewWrapper}>
+                <Image source={{ uri }} style={styles.imagePreview} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => removeImage(index)}
+                >
+                  <Text style={styles.removeImageText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
         {/* Bottom toolbar */}
         <View style={[styles.toolbar, isDark && styles.toolbarDark]}>
-          <View style={styles.toolbarLeft} />
+          <View style={styles.toolbarLeft}>
+            <TouchableOpacity
+              style={[styles.attachButton, isDisabled && styles.attachButtonDisabled]}
+              onPress={handleAttachment}
+              disabled={isDisabled}
+            >
+              <View style={styles.paperclip}>
+                <View style={[styles.paperclipOuter, isDark && styles.paperclipDark]} />
+                <View style={[styles.paperclipInner, isDark && styles.paperclipInnerDark]} />
+              </View>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -184,5 +276,81 @@ const styles = StyleSheet.create({
   },
   arrowStemActive: {
     backgroundColor: '#ffffff',
+  },
+  // Image preview
+  imagePreviewContainer: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  imagePreviewContent: {
+    gap: 8,
+  },
+  imagePreviewWrapper: {
+    position: 'relative',
+  },
+  imagePreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeImageText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  // Attachment button
+  attachButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachButtonDisabled: {
+    opacity: 0.5,
+  },
+  paperclip: {
+    width: 16,
+    height: 20,
+    position: 'relative',
+  },
+  paperclipOuter: {
+    position: 'absolute',
+    width: 12,
+    height: 18,
+    borderWidth: 2,
+    borderColor: '#6b7280',
+    borderRadius: 6,
+    borderBottomWidth: 0,
+    top: 2,
+    left: 2,
+  },
+  paperclipDark: {
+    borderColor: '#9ca3af',
+  },
+  paperclipInner: {
+    position: 'absolute',
+    width: 6,
+    height: 10,
+    borderWidth: 2,
+    borderColor: '#6b7280',
+    borderRadius: 3,
+    borderTopWidth: 0,
+    bottom: 0,
+    left: 5,
+  },
+  paperclipInnerDark: {
+    borderColor: '#9ca3af',
   },
 });
