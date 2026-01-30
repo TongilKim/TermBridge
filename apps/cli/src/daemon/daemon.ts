@@ -4,7 +4,7 @@ import { SdkSession } from './sdk-session.js';
 import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { RealtimeClient } from '../realtime/client.js';
-import type { Session, Machine, RealtimeMessage, ImageAttachment } from '@termbridge/shared';
+import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
 import { NOTIFICATION_TYPES } from '@termbridge/shared';
 
 export interface DaemonOptions {
@@ -98,8 +98,33 @@ export class Daemon extends EventEmitter {
       }
     });
 
+    // Wire up permission mode changes to broadcast
+    this.sdkSession.on('permission-mode', async (mode: PermissionMode) => {
+      if (this.realtimeClient) {
+        try {
+          await this.realtimeClient.broadcastMode(mode);
+        } catch (error) {
+          // Silently handle broadcast errors
+        }
+      }
+    });
+
     // Wire up input from mobile
     this.realtimeClient.on('input', async (message: RealtimeMessage) => {
+      // Handle mode change requests
+      if (message.type === 'mode-change' && message.permissionMode) {
+        this.sdkSession.setPermissionMode(message.permissionMode);
+        // Broadcast the new mode back to confirm
+        if (this.realtimeClient) {
+          try {
+            await this.realtimeClient.broadcastMode(message.permissionMode);
+          } catch (error) {
+            // Silently handle broadcast errors
+          }
+        }
+        return;
+      }
+
       // Remove trailing newline/carriage return for SDK
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;
@@ -112,6 +137,13 @@ export class Daemon extends EventEmitter {
 
     // Connect to realtime
     await this.realtimeClient.connect();
+
+    // Broadcast initial permission mode
+    try {
+      await this.realtimeClient.broadcastMode(this.sdkSession.getPermissionMode());
+    } catch (error) {
+      // Silently handle broadcast errors
+    }
 
     this.running = true;
     this.emit('started', {

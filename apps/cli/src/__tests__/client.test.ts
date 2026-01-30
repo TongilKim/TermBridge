@@ -413,6 +413,47 @@ describe('RealtimeClient', () => {
     expect(errorOutputChannel.send).not.toHaveBeenCalled();
   });
 
+  describe('broadcastMode', () => {
+    it('should send message with type mode', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastMode('bypassPermissions');
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'mode',
+          }),
+        })
+      );
+    });
+
+    it('should include permissionMode in payload', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastMode('plan');
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            type: 'mode',
+            permissionMode: 'plan',
+          }),
+        })
+      );
+    });
+  });
+
   it('should not increment sequence number when realtime is disabled', async () => {
     // Create channel that returns CHANNEL_ERROR (realtime disabled)
     const errorOutputChannel = {

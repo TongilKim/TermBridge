@@ -6,6 +6,7 @@ import {
   type RealtimeMessageType,
   type RealtimeMessage,
   type ImageAttachment,
+  type PermissionMode,
   // Session types
   type SessionStatus,
   type Session,
@@ -86,6 +87,59 @@ describe('Message Types', () => {
       validTypes.forEach((type) => {
         const msg: RealtimeMessage = { type, timestamp: 0, seq: 0 };
         expect(msg.type).toBe(type);
+      });
+    });
+
+    it('should include mode message type', () => {
+      const modeMessage: RealtimeMessage = {
+        type: 'mode',
+        timestamp: Date.now(),
+        seq: 3,
+      };
+
+      expect(modeMessage.type).toBe('mode');
+
+      // Verify 'mode' is valid in the union
+      const validTypes: RealtimeMessageType[] = [
+        'output',
+        'input',
+        'error',
+        'system',
+        'ping',
+        'pong',
+        'mode',
+      ];
+      expect(validTypes).toContain('mode');
+    });
+
+    it('should include permissionMode field for mode messages', () => {
+      const modeMessage: RealtimeMessage = {
+        type: 'mode',
+        permissionMode: 'default',
+        timestamp: Date.now(),
+        seq: 4,
+      };
+
+      expect(modeMessage.type).toBe('mode');
+      expect(modeMessage.permissionMode).toBe('default');
+
+      // Test all valid permission modes
+      const validModes: PermissionMode[] = [
+        'default',
+        'acceptEdits',
+        'plan',
+        'bypassPermissions',
+        'delegate',
+        'dontAsk',
+      ];
+      validModes.forEach((mode) => {
+        const msg: RealtimeMessage = {
+          type: 'mode',
+          permissionMode: mode,
+          timestamp: Date.now(),
+          seq: 5,
+        };
+        expect(msg.permissionMode).toBe(mode);
       });
     });
 
@@ -208,6 +262,25 @@ describe('ImageAttachment Types', () => {
 
       expect(attachment.data).toBe(base64Data);
       expect(typeof attachment.data).toBe('string');
+    });
+  });
+});
+
+describe('Permission Mode Types', () => {
+  describe('PermissionMode', () => {
+    it('should include all valid modes', () => {
+      const validModes: PermissionMode[] = [
+        'default',
+        'acceptEdits',
+        'plan',
+        'bypassPermissions',
+        'delegate',
+        'dontAsk',
+      ];
+      validModes.forEach((mode) => {
+        const obj: { mode: PermissionMode } = { mode };
+        expect(obj.mode).toBe(mode);
+      });
     });
   });
 });

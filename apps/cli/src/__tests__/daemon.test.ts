@@ -271,6 +271,58 @@ describe('Daemon', () => {
     expect(typeof daemon.sendPrompt).toBe('function');
   });
 
+  describe('permission mode handling', () => {
+    it('should listen for permission-mode event from SDK session', async () => {
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      // The daemon should have set up a listener for permission-mode
+      // We can verify this by checking that the SDK session has the listener
+      const sdkSession = (daemon as any).sdkSession;
+      const listeners = sdkSession.listeners('permission-mode');
+      expect(listeners.length).toBeGreaterThan(0);
+    });
+
+    it('should call realtimeClient.broadcastMode when mode received', async () => {
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      // Get access to the internal SDK session and realtime client
+      const sdkSession = (daemon as any).sdkSession;
+
+      // Spy on the output channel send
+      const sendSpy = mockOutputChannel.send;
+
+      // Emit permission-mode event from SDK session
+      sdkSession.emit('permission-mode', 'bypassPermissions');
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify broadcastMode was called (it sends to output channel)
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'mode',
+            permissionMode: 'bypassPermissions',
+          }),
+        })
+      );
+    });
+  });
+
   describe('attachment handling', () => {
     it('should extract attachments from incoming RealtimeMessage', async () => {
       // Test the logic for extracting attachments

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, ImageAttachment } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
 import { REALTIME_CHANNELS } from '@termbridge/shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -13,11 +13,13 @@ interface ConnectionStoreState {
   lastSeq: number;
   error: string | null;
   isTyping: boolean;
+  permissionMode: PermissionMode | null;
 
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
   sendInput: (content: string, attachments?: ImageAttachment[]) => Promise<void>;
+  sendModeChange: (mode: PermissionMode) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -33,6 +35,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   lastSeq: 0,
   error: null,
   isTyping: false,
+  permissionMode: null,
 
   connect: async (sessionId: string) => {
     try {
@@ -68,6 +71,13 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
       outputChannel.on('broadcast', { event: 'output' }, (payload) => {
         const message = payload.payload as RealtimeMessage;
+
+        // Handle mode messages separately
+        if (message.type === 'mode' && message.permissionMode) {
+          set({ permissionMode: message.permissionMode });
+          return;
+        }
+
         set((state) => ({
           messages: [...state.messages, message],
           lastSeq: message.seq,
@@ -150,6 +160,26 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
   clearMessages: () => {
     set({ messages: [], lastSeq: 0 });
+  },
+
+  sendModeChange: async (mode: PermissionMode) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'mode-change',
+      permissionMode: mode,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    await inputChannel.send({
+      type: 'broadcast',
+      event: 'input',
+      payload: message,
+    });
   },
 
   clearError: () => set({ error: null }),

@@ -16,6 +16,28 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useConnectionStore } from '../stores/connectionStore';
 import { convertImageToBase64 } from '../utils/imageUtils';
+import type { PermissionMode } from '@termbridge/shared';
+
+// Helper function to get human-readable mode label
+function getModeLabel(mode: PermissionMode | null): string | null {
+  if (!mode) return null;
+  switch (mode) {
+    case 'default':
+      return 'Ask before edits';
+    case 'acceptEdits':
+      return 'Auto-approve edits';
+    case 'plan':
+      return 'Plan mode';
+    case 'bypassPermissions':
+      return 'Yolo mode';
+    case 'delegate':
+      return 'Auto-approve edits';
+    case 'dontAsk':
+      return 'Auto-approve edits';
+    default:
+      return null;
+  }
+}
 
 interface InputBarProps {
   disabled?: boolean;
@@ -31,8 +53,40 @@ export function InputBar({ disabled }: InputBarProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { sendInput, state } = useConnectionStore();
+  const { sendInput, sendModeChange, state, permissionMode } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected';
+  const modeLabel = getModeLabel(permissionMode);
+
+  const handleModePress = () => {
+    if (isDisabled) return;
+
+    Alert.alert(
+      'Permission Mode',
+      'Select how Claude handles edits',
+      [
+        {
+          text: 'Ask before edits',
+          onPress: () => sendModeChange('default'),
+        },
+        {
+          text: 'Auto-approve edits',
+          onPress: () => sendModeChange('acceptEdits'),
+        },
+        {
+          text: 'Plan mode',
+          onPress: () => sendModeChange('plan'),
+        },
+        {
+          text: '🚀 Yolo mode',
+          onPress: () => sendModeChange('bypassPermissions'),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
 
   const handleSend = async () => {
     if (input.trim() && !isDisabled) {
@@ -173,6 +227,16 @@ export function InputBar({ disabled }: InputBarProps) {
               </View>
             </TouchableOpacity>
           </View>
+          {/* Mode indicator - tappable to change mode */}
+          <TouchableOpacity
+            style={[styles.modeIndicator, isDark && styles.modeIndicatorDark]}
+            onPress={handleModePress}
+            disabled={isDisabled}
+          >
+            <Text style={[styles.modeText, isDark && styles.modeTextDark]}>
+              {modeLabel || 'Select mode'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.sendButton,
@@ -365,5 +429,24 @@ const styles = StyleSheet.create({
   },
   imageIconSunDark: {
     backgroundColor: '#9ca3af',
+  },
+  // Mode indicator
+  modeIndicator: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 8,
+  },
+  modeIndicatorDark: {
+    backgroundColor: '#374151',
+  },
+  modeText: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  modeTextDark: {
+    color: '#9ca3af',
   },
 });

@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment } from '@termbridge/shared';
+import type { ImageAttachment, PermissionMode } from '@termbridge/shared';
 
 export interface SdkSessionOptions {
   cwd: string;
   allowedTools?: string[];
+  permissionMode?: PermissionMode;
 }
 
 export class SdkSession extends EventEmitter {
@@ -13,10 +14,21 @@ export class SdkSession extends EventEmitter {
   private sessionId: string | null = null;
   private abortController: AbortController | null = null;
   private isProcessing: boolean = false;
+  private currentPermissionMode: PermissionMode;
 
   constructor(options: SdkSessionOptions) {
     super();
     this.options = options;
+    this.currentPermissionMode = options.permissionMode || 'bypassPermissions';
+  }
+
+  setPermissionMode(mode: PermissionMode): void {
+    this.currentPermissionMode = mode;
+    this.emit('permission-mode', mode);
+  }
+
+  getPermissionMode(): PermissionMode {
+    return this.currentPermissionMode;
   }
 
   async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
@@ -33,7 +45,7 @@ export class SdkSession extends EventEmitter {
         allowedTools: this.options.allowedTools || ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
         cwd: this.options.cwd,
         abortController: this.abortController,
-        permissionMode: 'bypassPermissions',
+        permissionMode: this.currentPermissionMode,
       };
 
       // Resume session if we have one
@@ -97,6 +109,11 @@ export class SdkSession extends EventEmitter {
           // Capture session ID for resuming
           this.sessionId = message.session_id;
           this.emit('session-started', this.sessionId);
+
+          // Emit permission mode if present
+          if ('permissionMode' in message) {
+            this.emit('permission-mode', message.permissionMode);
+          }
         } else if (message.type === 'assistant') {
           // Assistant text output
           if (message.message?.content) {

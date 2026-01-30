@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { RealtimeMessage, ImageAttachment } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
 import { convertImageToBase64, getMediaTypeFromUri } from '../utils/imageUtils';
 
 // Mock expo-file-system/legacy
@@ -168,6 +168,7 @@ describe('Store Logic', () => {
         lastSeq: 0,
         error: null,
         isTyping: false,
+        permissionMode: null,
       };
 
       expect(initialState.state).toBe('disconnected');
@@ -175,6 +176,44 @@ describe('Store Logic', () => {
       expect(initialState.messages).toEqual([]);
       expect(initialState.lastSeq).toBe(0);
       expect(initialState.isTyping).toBe(false);
+    });
+
+    it('should have permissionMode in state', () => {
+      const state: {
+        permissionMode: PermissionMode | null;
+      } = {
+        permissionMode: null,
+      };
+
+      expect('permissionMode' in state).toBe(true);
+    });
+
+    it('should initialize permissionMode to null', () => {
+      const initialState = {
+        permissionMode: null as PermissionMode | null,
+      };
+
+      expect(initialState.permissionMode).toBeNull();
+    });
+
+    it('should update permissionMode on mode message', () => {
+      let permissionMode: PermissionMode | null = null;
+
+      const handleMessage = (message: RealtimeMessage) => {
+        if (message.type === 'mode' && message.permissionMode) {
+          permissionMode = message.permissionMode;
+        }
+      };
+
+      const modeMessage: RealtimeMessage = {
+        type: 'mode',
+        permissionMode: 'bypassPermissions',
+        timestamp: Date.now(),
+        seq: 1,
+      };
+
+      handleMessage(modeMessage);
+      expect(permissionMode).toBe('bypassPermissions');
     });
 
     it('should set isTyping true when sending input', () => {
@@ -347,6 +386,82 @@ describe('Store Logic', () => {
       expect(sentMessage!.attachments).toBeUndefined();
       expect(sentMessage!.content).toBe('Just a text message');
     });
+  });
+});
+
+describe('Mode Label Utils', () => {
+  const getModeLabel = (mode: PermissionMode | null): string | null => {
+    if (!mode) return null;
+    switch (mode) {
+      case 'default':
+        return 'Ask before edits';
+      case 'acceptEdits':
+        return 'Auto-approve edits';
+      case 'plan':
+        return 'Plan mode';
+      case 'bypassPermissions':
+        return 'Yolo mode';
+      case 'delegate':
+        return 'Auto-approve edits';
+      case 'dontAsk':
+        return 'Auto-approve edits';
+      default:
+        return null;
+    }
+  };
+
+  it('should return "Ask before edits" for default mode', () => {
+    expect(getModeLabel('default')).toBe('Ask before edits');
+  });
+
+  it('should return "Auto-approve edits" for acceptEdits mode', () => {
+    expect(getModeLabel('acceptEdits')).toBe('Auto-approve edits');
+  });
+
+  it('should return "Plan mode" for plan mode', () => {
+    expect(getModeLabel('plan')).toBe('Plan mode');
+  });
+
+  it('should return "Yolo mode" for bypassPermissions mode', () => {
+    expect(getModeLabel('bypassPermissions')).toBe('Yolo mode');
+  });
+
+  it('should return null for null mode (InputBar hides indicator)', () => {
+    expect(getModeLabel(null)).toBeNull();
+  });
+});
+
+describe('Mode Change', () => {
+  it('should send mode-change message with permissionMode', () => {
+    let sentMessage: RealtimeMessage | null = null;
+
+    const sendModeChange = (mode: PermissionMode) => {
+      const message: RealtimeMessage = {
+        type: 'mode-change',
+        permissionMode: mode,
+        timestamp: Date.now(),
+        seq: 1,
+      };
+      sentMessage = message;
+    };
+
+    sendModeChange('plan');
+
+    expect(sentMessage).not.toBeNull();
+    expect(sentMessage!.type).toBe('mode-change');
+    expect(sentMessage!.permissionMode).toBe('plan');
+  });
+
+  it('should handle mode-change type in RealtimeMessage', () => {
+    const message: RealtimeMessage = {
+      type: 'mode-change',
+      permissionMode: 'default',
+      timestamp: Date.now(),
+      seq: 1,
+    };
+
+    expect(message.type).toBe('mode-change');
+    expect(message.permissionMode).toBe('default');
   });
 });
 

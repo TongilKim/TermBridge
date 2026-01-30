@@ -23,6 +23,46 @@ describe('SdkSession', () => {
     } as any);
   });
 
+  describe('permission mode events', () => {
+    it('should emit permission-mode event on init message', async () => {
+      // Mock query to return a system init message with permissionMode
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-id',
+          permissionMode: 'bypassPermissions',
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      const permissionModeHandler = vi.fn();
+      sdkSession.on('permission-mode', permissionModeHandler);
+
+      await sdkSession.sendPrompt('Hello');
+
+      expect(permissionModeHandler).toHaveBeenCalledWith('bypassPermissions');
+    });
+
+    it('should have default permission mode of bypassPermissions', () => {
+      expect(sdkSession.getPermissionMode()).toBe('bypassPermissions');
+    });
+
+    it('should allow setting permission mode', () => {
+      sdkSession.setPermissionMode('plan');
+      expect(sdkSession.getPermissionMode()).toBe('plan');
+    });
+
+    it('should emit permission-mode event when mode is changed', () => {
+      const permissionModeHandler = vi.fn();
+      sdkSession.on('permission-mode', permissionModeHandler);
+
+      sdkSession.setPermissionMode('default');
+
+      expect(permissionModeHandler).toHaveBeenCalledWith('default');
+    });
+  });
+
   describe('sendPrompt with attachments', () => {
     it('should accept optional ImageAttachment array', async () => {
       const attachments: ImageAttachment[] = [

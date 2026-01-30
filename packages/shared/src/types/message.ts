@@ -1,5 +1,13 @@
 export type MessageType = 'output' | 'input' | 'error' | 'system';
 
+export type PermissionMode =
+  | 'default'
+  | 'acceptEdits'
+  | 'plan'
+  | 'bypassPermissions'
+  | 'delegate'
+  | 'dontAsk';
+
 export interface Message {
   id: number;
   session_id: string;
@@ -14,12 +22,15 @@ export type RealtimeMessageType =
   | 'error'
   | 'system'
   | 'ping'
-  | 'pong';
+  | 'pong'
+  | 'mode'
+  | 'mode-change';
 
 export interface RealtimeMessage {
   type: RealtimeMessageType;
   content?: string;
   attachments?: ImageAttachment[];
+  permissionMode?: PermissionMode;
   timestamp: number;
   seq: number;
 }
