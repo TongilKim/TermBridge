@@ -35,7 +35,7 @@ export function InputBar({ disabled }: InputBarProps) {
   const isDisabled = disabled || state !== 'connected';
 
   const handleSend = async () => {
-    if ((input.trim() || selectedImages.length > 0) && !isDisabled) {
+    if (input.trim() && !isDisabled) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // Convert images to base64 attachments
@@ -106,7 +106,7 @@ export function InputBar({ disabled }: InputBarProps) {
     []
   );
 
-  const canSend = (input.trim() || selectedImages.length > 0) && !isDisabled;
+  const canSend = input.trim() && !isDisabled;
 
   const removeImage = (index: number) => {
     setSelectedImages(selectedImages.filter((_, i) => i !== index));
@@ -167,9 +167,9 @@ export function InputBar({ disabled }: InputBarProps) {
               onPress={handleAttachment}
               disabled={isDisabled}
             >
-              <View style={styles.paperclip}>
-                <View style={[styles.paperclipOuter, isDark && styles.paperclipDark]} />
-                <View style={[styles.paperclipInner, isDark && styles.paperclipInnerDark]} />
+              <View style={[styles.imageIcon, isDark && styles.imageIconDark]}>
+                <View style={[styles.imageIconMountain, isDark && styles.imageIconMountainDark]} />
+                <View style={[styles.imageIconSun, isDark && styles.imageIconSunDark]} />
               </View>
             </TouchableOpacity>
           </View>
@@ -326,37 +326,44 @@ const styles = StyleSheet.create({
   attachButtonDisabled: {
     opacity: 0.5,
   },
-  paperclip: {
-    width: 16,
-    height: 20,
-    position: 'relative',
-  },
-  paperclipOuter: {
-    position: 'absolute',
-    width: 12,
-    height: 18,
-    borderWidth: 2,
-    borderColor: '#6b7280',
-    borderRadius: 6,
-    borderBottomWidth: 0,
-    top: 2,
-    left: 2,
-  },
-  paperclipDark: {
-    borderColor: '#9ca3af',
-  },
-  paperclipInner: {
-    position: 'absolute',
-    width: 6,
-    height: 10,
-    borderWidth: 2,
+  imageIcon: {
+    width: 20,
+    height: 16,
+    borderWidth: 1.5,
     borderColor: '#6b7280',
     borderRadius: 3,
-    borderTopWidth: 0,
-    bottom: 0,
-    left: 5,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  paperclipInnerDark: {
+  imageIconDark: {
     borderColor: '#9ca3af',
+  },
+  imageIconMountain: {
+    position: 'absolute',
+    bottom: 1,
+    left: 2,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#6b7280',
+  },
+  imageIconMountainDark: {
+    borderBottomColor: '#9ca3af',
+  },
+  imageIconSun: {
+    position: 'absolute',
+    top: 2,
+    right: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#6b7280',
+  },
+  imageIconSunDark: {
+    backgroundColor: '#9ca3af',
   },
 });
