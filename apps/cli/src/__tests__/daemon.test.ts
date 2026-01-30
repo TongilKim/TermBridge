@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ImageAttachment, RealtimeMessage } from '@termbridge/shared';
+import type { ImageAttachment, RealtimeMessage, SlashCommand } from '@termbridge/shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -317,6 +317,85 @@ describe('Daemon', () => {
           payload: expect.objectContaining({
             type: 'mode',
             permissionMode: 'bypassPermissions',
+          }),
+        })
+      );
+    });
+  });
+
+  describe('commands handling', () => {
+    it('should broadcast commands after first query completion', async () => {
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      // Get access to the internal SDK session
+      const sdkSession = (daemon as any).sdkSession;
+      const sendSpy = mockOutputChannel.send;
+
+      // Emit complete event to simulate first query completion
+      sdkSession.emit('complete');
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify broadcastCommands was called
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'commands',
+          }),
+        })
+      );
+    });
+
+    it('should handle commands-request message from mobile', async () => {
+      let inputHandler: ((payload: any) => void) | null = null;
+
+      mockInputChannel.on = vi.fn((event, filter, handler) => {
+        if (event === 'broadcast' && filter.event === 'input') {
+          inputHandler = handler;
+        }
+        return mockInputChannel as RealtimeChannel;
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sendSpy = mockOutputChannel.send;
+
+      // Simulate receiving commands-request from mobile
+      if (inputHandler) {
+        inputHandler({
+          payload: {
+            type: 'commands-request',
+            timestamp: Date.now(),
+            seq: 1,
+          },
+        });
+      }
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify broadcastCommands was called in response
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'commands',
           }),
         })
       );

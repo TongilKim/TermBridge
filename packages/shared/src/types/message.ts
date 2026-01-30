@@ -24,13 +24,16 @@ export type RealtimeMessageType =
   | 'ping'
   | 'pong'
   | 'mode'
-  | 'mode-change';
+  | 'mode-change'
+  | 'commands'
+  | 'commands-request';
 
 export interface RealtimeMessage {
   type: RealtimeMessageType;
   content?: string;
   attachments?: ImageAttachment[];
   permissionMode?: PermissionMode;
+  commands?: SlashCommand[];
   timestamp: number;
   seq: number;
 }
@@ -39,4 +42,10 @@ export interface ImageAttachment {
   type: 'image';
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
   data: string;
+}
+
+export interface SlashCommand {
+  name: string;
+  description: string;
+  argumentHint: string;
 }

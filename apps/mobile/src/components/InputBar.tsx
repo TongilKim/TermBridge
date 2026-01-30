@@ -16,7 +16,8 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useConnectionStore } from '../stores/connectionStore';
 import { convertImageToBase64 } from '../utils/imageUtils';
-import type { PermissionMode } from '@termbridge/shared';
+import { CommandPicker } from './CommandPicker';
+import type { PermissionMode, SlashCommand } from '@termbridge/shared';
 
 // Helper function to get human-readable mode label
 function getModeLabel(mode: PermissionMode | null): string | null {
@@ -50,12 +51,15 @@ export function InputBar({ disabled }: InputBarProps) {
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [showCommandPicker, setShowCommandPicker] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { sendInput, sendModeChange, state, permissionMode } = useConnectionStore();
+  const { sendInput, sendModeChange, state, permissionMode, commands } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected';
   const modeLabel = getModeLabel(permissionMode);
+
+  console.log('[InputBar] commands from store:', commands.length);
 
   const handleModePress = () => {
     if (isDisabled) return;
@@ -166,6 +170,16 @@ export function InputBar({ disabled }: InputBarProps) {
     setSelectedImages(selectedImages.filter((_, i) => i !== index));
   };
 
+  const handleCommandSelect = (command: SlashCommand) => {
+    setInput(`/${command.name} `);
+    setShowCommandPicker(false);
+  };
+
+  const handleCommandsPress = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowCommandPicker(true);
+  };
+
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <View style={[styles.inputCard, isDark && styles.inputCardDark]}>
@@ -226,6 +240,13 @@ export function InputBar({ disabled }: InputBarProps) {
                 <View style={[styles.imageIconSun, isDark && styles.imageIconSunDark]} />
               </View>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.commandsButton, isDisabled && styles.commandsButtonDisabled]}
+              onPress={handleCommandsPress}
+              disabled={isDisabled}
+            >
+              <Text style={[styles.commandsButtonText, isDark && styles.commandsButtonTextDark]}>/</Text>
+            </TouchableOpacity>
           </View>
           {/* Mode indicator - tappable to change mode */}
           <TouchableOpacity
@@ -253,6 +274,13 @@ export function InputBar({ disabled }: InputBarProps) {
           </TouchableOpacity>
         </View>
       </View>
+
+      <CommandPicker
+        visible={showCommandPicker}
+        commands={commands}
+        onSelect={handleCommandSelect}
+        onClose={() => setShowCommandPicker(false)}
+      />
     </View>
   );
 }
@@ -305,6 +333,8 @@ const styles = StyleSheet.create({
   },
   toolbarLeft: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   sendButton: {
     width: 32,
@@ -389,6 +419,25 @@ const styles = StyleSheet.create({
   },
   attachButtonDisabled: {
     opacity: 0.5,
+  },
+  // Commands button
+  commandsButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  commandsButtonDisabled: {
+    opacity: 0.5,
+  },
+  commandsButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  commandsButtonTextDark: {
+    color: '#9ca3af',
   },
   imageIcon: {
     width: 20,

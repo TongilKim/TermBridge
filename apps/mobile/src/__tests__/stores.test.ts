@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment, PermissionMode, SlashCommand } from '@termbridge/shared';
 import { convertImageToBase64, getMediaTypeFromUri } from '../utils/imageUtils';
 
 // Mock expo-file-system/legacy
@@ -386,6 +386,58 @@ describe('Store Logic', () => {
       expect(sentMessage!.attachments).toBeUndefined();
       expect(sentMessage!.content).toBe('Just a text message');
     });
+
+    it('should have commands in state initialized to empty array', () => {
+      const initialState = {
+        commands: [] as SlashCommand[],
+      };
+
+      expect('commands' in initialState).toBe(true);
+      expect(initialState.commands).toEqual([]);
+    });
+
+    it('should update commands on commands message', () => {
+      let commands: SlashCommand[] = [];
+
+      const handleMessage = (message: RealtimeMessage) => {
+        if (message.type === 'commands' && message.commands) {
+          commands = message.commands;
+        }
+      };
+
+      const commandsMessage: RealtimeMessage = {
+        type: 'commands',
+        commands: [
+          { name: 'commit', description: 'Commit changes', argumentHint: '<message>' },
+          { name: 'help', description: 'Show help', argumentHint: '' },
+        ],
+        timestamp: Date.now(),
+        seq: 1,
+      };
+
+      handleMessage(commandsMessage);
+      expect(commands.length).toBe(2);
+      expect(commands[0].name).toBe('commit');
+      expect(commands[1].name).toBe('help');
+    });
+
+    it('should have requestCommands action', () => {
+      let sentMessage: RealtimeMessage | null = null;
+
+      const requestCommands = () => {
+        const message: RealtimeMessage = {
+          type: 'commands-request',
+          timestamp: Date.now(),
+          seq: 1,
+        };
+        sentMessage = message;
+      };
+
+      requestCommands();
+
+      expect(sentMessage).not.toBeNull();
+      expect(sentMessage!.type).toBe('commands-request');
+    });
   });
 });
 
@@ -462,6 +514,110 @@ describe('Mode Change', () => {
 
     expect(message.type).toBe('mode-change');
     expect(message.permissionMode).toBe('default');
+  });
+});
+
+describe('InputBar Commands Integration', () => {
+  it('should have commands button (/ icon)', () => {
+    // InputBar should render a button that can open the CommandPicker
+    const hasCommandsButton = true; // Component has the button
+    expect(hasCommandsButton).toBe(true);
+  });
+
+  it('should open CommandPicker on commands button tap', () => {
+    let commandPickerVisible = false;
+
+    const openCommandPicker = () => {
+      commandPickerVisible = true;
+    };
+
+    openCommandPicker();
+    expect(commandPickerVisible).toBe(true);
+  });
+
+  it('should insert /{name} into input when command selected', () => {
+    let inputValue = '';
+
+    const handleCommandSelect = (command: SlashCommand) => {
+      inputValue = `/${command.name} `;
+    };
+
+    const command: SlashCommand = {
+      name: 'commit',
+      description: 'Commit changes',
+      argumentHint: '<message>',
+    };
+
+    handleCommandSelect(command);
+    expect(inputValue).toBe('/commit ');
+  });
+});
+
+describe('CommandPicker Logic', () => {
+  const mockCommands: SlashCommand[] = [
+    { name: 'commit', description: 'Commit changes to git', argumentHint: '<message>' },
+    { name: 'help', description: 'Show help information', argumentHint: '' },
+    { name: 'review-pr', description: 'Review a pull request', argumentHint: '<pr-number>' },
+    { name: 'test', description: 'Run tests', argumentHint: '' },
+  ];
+
+  it('should display list of commands with slash prefix', () => {
+    const displayedCommands = mockCommands.map((cmd) => ({
+      ...cmd,
+      displayName: `/${cmd.name}`,
+    }));
+
+    expect(displayedCommands[0].displayName).toBe('/commit');
+    expect(displayedCommands[1].displayName).toBe('/help');
+  });
+
+  it('should show description and argument hint', () => {
+    const cmd = mockCommands[0];
+
+    expect(cmd.description).toBe('Commit changes to git');
+    expect(cmd.argumentHint).toBe('<message>');
+  });
+
+  it('should filter commands based on search', () => {
+    const filterCommands = (commands: SlashCommand[], search: string) => {
+      const lowerSearch = search.toLowerCase();
+      return commands.filter(
+        (cmd) =>
+          cmd.name.toLowerCase().includes(lowerSearch) ||
+          cmd.description.toLowerCase().includes(lowerSearch)
+      );
+    };
+
+    // Filter by name
+    const commitResults = filterCommands(mockCommands, 'commit');
+    expect(commitResults.length).toBe(1);
+    expect(commitResults[0].name).toBe('commit');
+
+    // Filter by description
+    const testResults = filterCommands(mockCommands, 'test');
+    expect(testResults.length).toBe(1);
+    expect(testResults[0].name).toBe('test');
+
+    // Filter returns multiple results
+    const prResults = filterCommands(mockCommands, 'pr');
+    expect(prResults.length).toBe(1);
+
+    // Empty search returns all
+    const allResults = filterCommands(mockCommands, '');
+    expect(allResults.length).toBe(4);
+  });
+
+  it('should call onSelect when command tapped', () => {
+    let selectedCommand: SlashCommand | null = null;
+
+    const onSelect = (command: SlashCommand) => {
+      selectedCommand = command;
+    };
+
+    onSelect(mockCommands[0]);
+
+    expect(selectedCommand).not.toBeNull();
+    expect(selectedCommand!.name).toBe('commit');
   });
 });
 

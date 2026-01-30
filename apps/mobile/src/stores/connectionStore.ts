@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment, PermissionMode, SlashCommand } from '@termbridge/shared';
 import { REALTIME_CHANNELS } from '@termbridge/shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -14,12 +14,14 @@ interface ConnectionStoreState {
   error: string | null;
   isTyping: boolean;
   permissionMode: PermissionMode | null;
+  commands: SlashCommand[];
 
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
   sendInput: (content: string, attachments?: ImageAttachment[]) => Promise<void>;
   sendModeChange: (mode: PermissionMode) => Promise<void>;
+  requestCommands: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -36,6 +38,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   error: null,
   isTyping: false,
   permissionMode: null,
+  commands: [],
 
   connect: async (sessionId: string) => {
     try {
@@ -71,10 +74,18 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
       outputChannel.on('broadcast', { event: 'output' }, (payload) => {
         const message = payload.payload as RealtimeMessage;
+        console.log('[Mobile] Received broadcast:', message.type);
 
         // Handle mode messages separately
         if (message.type === 'mode' && message.permissionMode) {
           set({ permissionMode: message.permissionMode });
+          return;
+        }
+
+        // Handle commands messages separately
+        if (message.type === 'commands' && message.commands) {
+          console.log('[Mobile] Received commands:', message.commands.length);
+          set({ commands: message.commands });
           return;
         }
 
@@ -106,6 +117,9 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       ]);
 
       set({ state: 'connected' });
+
+      // Request available commands from CLI
+      get().requestCommands();
     } catch (error) {
       set({
         state: 'disconnected',
@@ -180,6 +194,28 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       event: 'input',
       payload: message,
     });
+  },
+
+  requestCommands: async () => {
+    if (!inputChannel || get().state !== 'connected') {
+      console.log('[Mobile] requestCommands: Not connected');
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'commands-request',
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    console.log('[Mobile] Sending commands-request');
+    await inputChannel.send({
+      type: 'broadcast',
+      event: 'input',
+      payload: message,
+    });
+    console.log('[Mobile] commands-request sent');
   },
 
   clearError: () => set({ error: null }),

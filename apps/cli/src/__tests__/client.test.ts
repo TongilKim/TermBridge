@@ -413,6 +413,54 @@ describe('RealtimeClient', () => {
     expect(errorOutputChannel.send).not.toHaveBeenCalled();
   });
 
+  describe('broadcastCommands', () => {
+    it('should send message with type commands', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastCommands([
+        { name: 'commit', description: 'Commit changes', argumentHint: '<message>' },
+      ]);
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'commands',
+          }),
+        })
+      );
+    });
+
+    it('should include commands array in payload', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      const commands = [
+        { name: 'commit', description: 'Commit changes', argumentHint: '<message>' },
+        { name: 'help', description: 'Show help', argumentHint: '' },
+      ];
+
+      await client.connect();
+      await client.broadcastCommands(commands);
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            type: 'commands',
+            commands,
+          }),
+        })
+      );
+    });
+  });
+
   describe('broadcastMode', () => {
     it('should send message with type mode', async () => {
       const client = new RealtimeClient({

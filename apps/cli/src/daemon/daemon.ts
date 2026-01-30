@@ -25,6 +25,8 @@ export class Daemon extends EventEmitter {
   private machine: Machine | null = null;
   private session: Session | null = null;
   private running: boolean = false;
+  private commandsBroadcast: boolean = false;
+  private sdkCommandsBroadcast: boolean = false;
 
   constructor(options: DaemonOptions) {
     super();
@@ -91,10 +93,18 @@ export class Daemon extends EventEmitter {
       this.emit('error', error);
     });
 
-    this.sdkSession.on('complete', () => {
+    this.sdkSession.on('complete', async () => {
       // Session query completed, ready for next input
       if (this.options.hybrid !== false) {
         process.stdout.write('\n> ');
+      }
+
+      // Broadcast real SDK commands (including custom skills) after first query completion
+      // This updates the fallback commands with the full list from the SDK
+      if (!this.sdkCommandsBroadcast && this.realtimeClient) {
+        this.sdkCommandsBroadcast = true;
+        console.log('[DEBUG] Broadcasting SDK commands after first query completion');
+        await this.broadcastCommands();
       }
     });
 
@@ -111,6 +121,14 @@ export class Daemon extends EventEmitter {
 
     // Wire up input from mobile
     this.realtimeClient.on('input', async (message: RealtimeMessage) => {
+      console.log('[DEBUG] Received input from mobile:', message.type);
+
+      // Broadcast commands on first message from mobile if not already done
+      if (!this.commandsBroadcast) {
+        this.commandsBroadcast = true;
+        await this.broadcastCommands();
+      }
+
       // Handle mode change requests
       if (message.type === 'mode-change' && message.permissionMode) {
         this.sdkSession.setPermissionMode(message.permissionMode);
@@ -122,6 +140,13 @@ export class Daemon extends EventEmitter {
             // Silently handle broadcast errors
           }
         }
+        return;
+      }
+
+      // Handle commands request
+      if (message.type === 'commands-request') {
+        console.log('[DEBUG] Received commands-request from mobile');
+        await this.broadcastCommands();
         return;
       }
 
@@ -137,6 +162,7 @@ export class Daemon extends EventEmitter {
 
     // Connect to realtime
     await this.realtimeClient.connect();
+    console.log('[DEBUG] Realtime enabled:', this.realtimeClient.isRealtimeEnabled());
 
     // Broadcast initial permission mode
     try {
@@ -144,6 +170,9 @@ export class Daemon extends EventEmitter {
     } catch (error) {
       // Silently handle broadcast errors
     }
+
+    // Broadcast available commands immediately
+    await this.broadcastCommands();
 
     this.running = true;
     this.emit('started', {
@@ -200,6 +229,23 @@ export class Daemon extends EventEmitter {
 
   getMachine(): Machine | null {
     return this.machine;
+  }
+
+  private async broadcastCommands(): Promise<void> {
+    if (!this.realtimeClient) {
+      console.log('[DEBUG] broadcastCommands: No realtime client');
+      return;
+    }
+
+    try {
+      const commands = await this.sdkSession.getSupportedCommands();
+      console.log('[DEBUG] broadcastCommands: Got', commands.length, 'commands');
+      await this.realtimeClient.broadcastCommands(commands);
+      console.log('[DEBUG] broadcastCommands: Broadcast complete');
+    } catch (error) {
+      console.log('[DEBUG] broadcastCommands error:', error);
+      // Silently handle broadcast errors
+    }
   }
 
   private checkNotificationTriggers(output: string): void {

@@ -7,6 +7,7 @@ import {
   type RealtimeMessage,
   type ImageAttachment,
   type PermissionMode,
+  type SlashCommand,
   // Session types
   type SessionStatus,
   type Session,
@@ -281,6 +282,54 @@ describe('Permission Mode Types', () => {
         const obj: { mode: PermissionMode } = { mode };
         expect(obj.mode).toBe(mode);
       });
+    });
+  });
+});
+
+describe('SlashCommand Types', () => {
+  describe('SlashCommand interface', () => {
+    it('should have name, description, argumentHint fields', () => {
+      const command: SlashCommand = {
+        name: 'commit',
+        description: 'Commit changes to git',
+        argumentHint: '<message>',
+      };
+
+      expect(command.name).toBe('commit');
+      expect(command.description).toBe('Commit changes to git');
+      expect(command.argumentHint).toBe('<message>');
+    });
+  });
+
+  describe('RealtimeMessageType for commands', () => {
+    it('should include commands and commands-request types', () => {
+      const validTypes: RealtimeMessageType[] = [
+        'commands',
+        'commands-request',
+      ];
+
+      validTypes.forEach((type) => {
+        const msg: { type: RealtimeMessageType } = { type };
+        expect(msg.type).toBe(type);
+      });
+    });
+
+    it('should include commands field for commands message type', () => {
+      const commands: SlashCommand[] = [
+        { name: 'commit', description: 'Commit changes', argumentHint: '<message>' },
+        { name: 'help', description: 'Show help', argumentHint: '' },
+      ];
+
+      const commandsMessage: RealtimeMessage = {
+        type: 'commands',
+        commands,
+        timestamp: Date.now(),
+        seq: 0,
+      };
+
+      expect(commandsMessage.type).toBe('commands');
+      expect(commandsMessage.commands).toBe(commands);
+      expect(commandsMessage.commands?.length).toBe(2);
     });
   });
 });

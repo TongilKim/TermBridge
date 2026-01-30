@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, PermissionMode } from '@termbridge/shared';
+import type { RealtimeMessage, PermissionMode, SlashCommand } from '@termbridge/shared';
 import { REALTIME_CHANNELS } from '@termbridge/shared';
 
 export interface RealtimeClientOptions {
@@ -150,6 +150,34 @@ export class RealtimeClient extends EventEmitter {
     const message: RealtimeMessage = {
       type: 'mode',
       permissionMode: mode,
+      timestamp: Date.now(),
+      seq: ++this.seq,
+    };
+
+    await this.outputChannel.send({
+      type: 'broadcast',
+      event: 'output',
+      payload: message,
+    });
+
+    this.emit('broadcast', message);
+  }
+
+  async broadcastCommands(commands: SlashCommand[]): Promise<void> {
+    if (!this.outputChannel) {
+      throw new Error('Not connected');
+    }
+
+    // Skip broadcasting if realtime is not enabled
+    if (!this.realtimeEnabled) {
+      console.log('[DEBUG] RealtimeClient.broadcastCommands: Realtime not enabled, skipping');
+      return;
+    }
+    console.log('[DEBUG] RealtimeClient.broadcastCommands: Broadcasting', commands.length, 'commands');
+
+    const message: RealtimeMessage = {
+      type: 'commands',
+      commands,
       timestamp: Date.now(),
       seq: ++this.seq,
     };

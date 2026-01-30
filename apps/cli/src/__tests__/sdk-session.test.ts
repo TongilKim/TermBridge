@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ImageAttachment } from '@termbridge/shared';
+import type { ImageAttachment, SlashCommand } from '@termbridge/shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -135,6 +135,25 @@ describe('SdkSession', () => {
           prompt: 'Hello, how are you?',
         })
       );
+    });
+  });
+
+  describe('getSupportedCommands', () => {
+    it('should have getSupportedCommands method', () => {
+      expect(typeof sdkSession.getSupportedCommands).toBe('function');
+    });
+
+    it('should return Promise<SlashCommand[]>', async () => {
+      const result = await sdkSession.getSupportedCommands();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should return known Claude Code commands', async () => {
+      const result = await sdkSession.getSupportedCommands();
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0]).toHaveProperty('name');
+      expect(result[0]).toHaveProperty('description');
+      expect(result[0]).toHaveProperty('argumentHint');
     });
   });
 });

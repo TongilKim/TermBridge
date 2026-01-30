@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment, PermissionMode } from '@termbridge/shared';
+import type { Options, Query, SlashCommand as SDKSlashCommand } from '@anthropic-ai/claude-agent-sdk';
+import type { ImageAttachment, PermissionMode, SlashCommand } from '@termbridge/shared';
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -15,6 +15,7 @@ export class SdkSession extends EventEmitter {
   private abortController: AbortController | null = null;
   private isProcessing: boolean = false;
   private currentPermissionMode: PermissionMode;
+  private currentQuery: Query | null = null;
 
   constructor(options: SdkSessionOptions) {
     super();
@@ -100,10 +101,12 @@ export class SdkSession extends EventEmitter {
         queryPrompt = prompt;
       }
 
-      for await (const message of query({
+      this.currentQuery = query({
         prompt: queryPrompt,
         options: queryOptions,
-      })) {
+      });
+
+      for await (const message of this.currentQuery) {
         // Handle different message types based on the SDK types
         if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
           // Capture session ID for resuming
@@ -163,5 +166,35 @@ export class SdkSession extends EventEmitter {
 
   isActive(): boolean {
     return this.isProcessing;
+  }
+
+  async getSupportedCommands(): Promise<SlashCommand[]> {
+    // Use SDK method if query is available
+    if (this.currentQuery) {
+      try {
+        const sdkCommands = await this.currentQuery.supportedCommands();
+        return sdkCommands.map((cmd: SDKSlashCommand) => ({
+          name: cmd.name,
+          description: cmd.description,
+          argumentHint: cmd.argumentHint || '',
+        }));
+      } catch (error) {
+        // Fall back to default commands if SDK call fails
+      }
+    }
+
+    // Fallback: Return known Claude Code slash commands
+    return [
+      { name: 'commit', description: 'Commit changes to git with a generated message', argumentHint: '' },
+      { name: 'help', description: 'Show available commands and usage', argumentHint: '' },
+      { name: 'review-pr', description: 'Review a GitHub pull request', argumentHint: '<pr-url>' },
+      { name: 'clear', description: 'Clear the conversation history', argumentHint: '' },
+      { name: 'compact', description: 'Compact the conversation to save context', argumentHint: '' },
+      { name: 'bug', description: 'Report a bug to Anthropic', argumentHint: '' },
+      { name: 'init', description: 'Initialize Claude Code in the current directory', argumentHint: '' },
+      { name: 'memory', description: 'Edit CLAUDE.md memory file', argumentHint: '' },
+      { name: 'model', description: 'Change the AI model', argumentHint: '' },
+      { name: 'cost', description: 'Show token usage and cost', argumentHint: '' },
+    ];
   }
 }
