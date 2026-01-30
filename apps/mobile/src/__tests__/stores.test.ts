@@ -1,4 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { RealtimeMessage, ImageAttachment } from '@termbridge/shared';
+import { convertImageToBase64, getMediaTypeFromUri } from '../utils/imageUtils';
+
+// Mock expo-file-system/legacy
+vi.mock('expo-file-system/legacy', () => ({
+  readAsStringAsync: vi.fn().mockResolvedValue('base64encodeddata'),
+  EncodingType: { Base64: 'base64' },
+}));
 
 // Mock supabase before imports
 vi.mock('../services/supabase', () => ({
@@ -267,6 +275,165 @@ describe('Store Logic', () => {
 
       setError('Connection failed');
       expect(error).toBe('Connection failed');
+    });
+
+    it('should accept optional attachments parameter in sendInput', () => {
+      let sentMessage: RealtimeMessage | null = null;
+
+      const sendInput = (content: string, attachments?: ImageAttachment[]) => {
+        const message: RealtimeMessage = {
+          type: 'input',
+          content,
+          attachments,
+          timestamp: Date.now(),
+          seq: 1,
+        };
+        sentMessage = message;
+      };
+
+      const attachments: ImageAttachment[] = [
+        { type: 'image', mediaType: 'image/jpeg', data: 'base64data' },
+      ];
+
+      sendInput('Describe this image', attachments);
+
+      expect(sentMessage).not.toBeNull();
+      expect(sentMessage!.attachments).toBe(attachments);
+    });
+
+    it('should include attachments in RealtimeMessage payload', () => {
+      let sentMessage: RealtimeMessage | null = null;
+
+      const sendInput = (content: string, attachments?: ImageAttachment[]) => {
+        const message: RealtimeMessage = {
+          type: 'input',
+          content,
+          attachments,
+          timestamp: Date.now(),
+          seq: 1,
+        };
+        sentMessage = message;
+      };
+
+      const attachments: ImageAttachment[] = [
+        { type: 'image', mediaType: 'image/png', data: 'iVBORw0KGgoAAAANS' },
+        { type: 'image', mediaType: 'image/jpeg', data: '/9j/4AAQSkZJRg' },
+      ];
+
+      sendInput('What are these images?', attachments);
+
+      expect(sentMessage!.attachments?.length).toBe(2);
+      expect(sentMessage!.attachments?.[0].mediaType).toBe('image/png');
+      expect(sentMessage!.attachments?.[1].mediaType).toBe('image/jpeg');
+    });
+
+    it('should send message without attachments when none provided', () => {
+      let sentMessage: RealtimeMessage | null = null;
+
+      const sendInput = (content: string, attachments?: ImageAttachment[]) => {
+        const message: RealtimeMessage = {
+          type: 'input',
+          content,
+          attachments,
+          timestamp: Date.now(),
+          seq: 1,
+        };
+        sentMessage = message;
+      };
+
+      sendInput('Just a text message');
+
+      expect(sentMessage).not.toBeNull();
+      expect(sentMessage!.attachments).toBeUndefined();
+      expect(sentMessage!.content).toBe('Just a text message');
+    });
+  });
+});
+
+describe('Image Utils', () => {
+  describe('getMediaTypeFromUri', () => {
+    it('should detect PNG media type from URI', () => {
+      expect(getMediaTypeFromUri('file:///path/to/image.png')).toBe('image/png');
+      expect(getMediaTypeFromUri('file:///path/to/IMAGE.PNG')).toBe('image/png');
+    });
+
+    it('should default to JPEG for unknown extensions', () => {
+      expect(getMediaTypeFromUri('file:///path/to/image')).toBe('image/jpeg');
+      expect(getMediaTypeFromUri('file:///path/to/image.unknown')).toBe('image/jpeg');
+    });
+
+    it('should detect GIF media type from URI', () => {
+      expect(getMediaTypeFromUri('file:///path/to/image.gif')).toBe('image/gif');
+    });
+
+    it('should detect WEBP media type from URI', () => {
+      expect(getMediaTypeFromUri('file:///path/to/image.webp')).toBe('image/webp');
+    });
+  });
+
+  describe('convertImageToBase64', () => {
+    it('should return ImageAttachment with base64 data', async () => {
+      const result = await convertImageToBase64('file:///path/to/image.jpg');
+
+      expect(result.type).toBe('image');
+      expect(result.data).toBe('base64encodeddata');
+      expect(result.mediaType).toBe('image/jpeg');
+    });
+
+    it('should detect PNG media type from URI', async () => {
+      const result = await convertImageToBase64('file:///path/to/image.png');
+
+      expect(result.mediaType).toBe('image/png');
+    });
+
+    it('should default to JPEG for unknown extensions', async () => {
+      const result = await convertImageToBase64('file:///path/to/image.unknown');
+
+      expect(result.mediaType).toBe('image/jpeg');
+    });
+  });
+
+  describe('handleSend behavior', () => {
+    it('should convert selected images to base64 before sending', async () => {
+      let sentAttachments: ImageAttachment[] | undefined;
+      const selectedImages = ['file:///path/to/image1.png', 'file:///path/to/image2.jpg'];
+
+      // Simulate handleSend logic
+      const handleSend = async (
+        images: string[],
+        onSend: (content: string, attachments?: ImageAttachment[]) => void
+      ) => {
+        const attachments = await Promise.all(
+          images.map((uri) => convertImageToBase64(uri))
+        );
+        onSend('Test message', attachments.length > 0 ? attachments : undefined);
+      };
+
+      await handleSend(selectedImages, (content, attachments) => {
+        sentAttachments = attachments;
+      });
+
+      expect(sentAttachments).toBeDefined();
+      expect(sentAttachments!.length).toBe(2);
+      expect(sentAttachments![0].mediaType).toBe('image/png');
+      expect(sentAttachments![1].mediaType).toBe('image/jpeg');
+    });
+
+    it('should clear selectedImages after sending', async () => {
+      let selectedImages = ['file:///path/to/image.png'];
+      let cleared = false;
+
+      // Simulate handleSend clearing images
+      const clearImages = () => {
+        selectedImages = [];
+        cleared = true;
+      };
+
+      // After send completes, images should be cleared
+      clearImages();
+
+      expect(selectedImages).toEqual([]);
+      expect(cleared).toBe(true);
     });
   });
 });

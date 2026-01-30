@@ -5,6 +5,7 @@ import {
   type Message,
   type RealtimeMessageType,
   type RealtimeMessage,
+  type ImageAttachment,
   // Session types
   type SessionStatus,
   type Session,
@@ -87,6 +88,31 @@ describe('Message Types', () => {
         expect(msg.type).toBe(type);
       });
     });
+
+    it('should have optional attachments field', () => {
+      // Message without attachments
+      const messageWithoutAttachments: RealtimeMessage = {
+        type: 'input',
+        content: 'Hello',
+        timestamp: Date.now(),
+        seq: 1,
+      };
+      expect(messageWithoutAttachments.attachments).toBeUndefined();
+
+      // Message with attachments
+      const attachments: ImageAttachment[] = [
+        { type: 'image', mediaType: 'image/jpeg', data: 'base64data' },
+      ];
+      const messageWithAttachments: RealtimeMessage = {
+        type: 'input',
+        content: 'Describe this image',
+        attachments,
+        timestamp: Date.now(),
+        seq: 2,
+      };
+      expect(messageWithAttachments.attachments).toBe(attachments);
+      expect(messageWithAttachments.attachments?.length).toBe(1);
+    });
   });
 });
 
@@ -138,6 +164,50 @@ describe('Session Types', () => {
       };
       expect(fullSession.working_directory).toBe('/home/user/project');
       expect(fullSession.ended_at).toBe('2024-01-01T01:00:00Z');
+    });
+  });
+});
+
+describe('ImageAttachment Types', () => {
+  describe('ImageAttachment interface', () => {
+    it('should have type field set to image', () => {
+      const attachment: ImageAttachment = {
+        type: 'image',
+        mediaType: 'image/jpeg',
+        data: 'base64encodeddata',
+      };
+
+      expect(attachment.type).toBe('image');
+    });
+
+    it('should have mediaType field with valid image MIME types', () => {
+      const validMediaTypes: Array<ImageAttachment['mediaType']> = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+      ];
+
+      validMediaTypes.forEach((mediaType) => {
+        const attachment: ImageAttachment = {
+          type: 'image',
+          mediaType,
+          data: 'base64data',
+        };
+        expect(attachment.mediaType).toBe(mediaType);
+      });
+    });
+
+    it('should have data field for base64 string', () => {
+      const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const attachment: ImageAttachment = {
+        type: 'image',
+        mediaType: 'image/png',
+        data: base64Data,
+      };
+
+      expect(attachment.data).toBe(base64Data);
+      expect(typeof attachment.data).toBe('string');
     });
   });
 });

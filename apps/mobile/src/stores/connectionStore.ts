@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment } from '@termbridge/shared';
 import { REALTIME_CHANNELS } from '@termbridge/shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -17,7 +17,7 @@ interface ConnectionStoreState {
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
-  sendInput: (content: string) => Promise<void>;
+  sendInput: (content: string, attachments?: ImageAttachment[]) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -120,7 +120,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     });
   },
 
-  sendInput: async (content: string) => {
+  sendInput: async (content: string, attachments?: ImageAttachment[]) => {
     if (!inputChannel || get().state !== 'connected') {
       set({ error: 'Not connected' });
       return;
@@ -129,6 +129,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     const message: RealtimeMessage = {
       type: 'input',
       content,
+      attachments,
       timestamp: Date.now(),
       seq: ++seq,
     };

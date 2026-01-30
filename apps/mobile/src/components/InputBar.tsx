@@ -15,6 +15,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useConnectionStore } from '../stores/connectionStore';
+import { convertImageToBase64 } from '../utils/imageUtils';
 
 interface InputBarProps {
   disabled?: boolean;
@@ -34,10 +35,15 @@ export function InputBar({ disabled }: InputBarProps) {
   const isDisabled = disabled || state !== 'connected';
 
   const handleSend = async () => {
-    if (input.trim() && !isDisabled) {
+    if ((input.trim() || selectedImages.length > 0) && !isDisabled) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // TODO: Handle image attachments when sending
-      await sendInput(input + '\n');
+
+      // Convert images to base64 attachments
+      const attachments = await Promise.all(
+        selectedImages.map((uri) => convertImageToBase64(uri))
+      );
+
+      await sendInput(input + '\n', attachments.length > 0 ? attachments : undefined);
       setInput('');
       setSelectedImages([]);
       setInputHeight(MIN_INPUT_HEIGHT);
@@ -100,7 +106,7 @@ export function InputBar({ disabled }: InputBarProps) {
     []
   );
 
-  const canSend = input.trim() && !isDisabled;
+  const canSend = (input.trim() || selectedImages.length > 0) && !isDisabled;
 
   const removeImage = (index: number) => {
     setSelectedImages(selectedImages.filter((_, i) => i !== index));

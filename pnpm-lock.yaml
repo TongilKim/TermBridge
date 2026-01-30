@@ -75,6 +75,9 @@ importers:
       expo-device:
         specifier: ~8.0.10
         version: 8.0.10(expo@54.0.32)
+      expo-file-system:
+        specifier: ~19.0.21
+        version: 19.0.21(expo@54.0.32)(react-native@0.81.5)
       expo-haptics:
         specifier: ~15.0.8
         version: 15.0.8(expo@54.0.32)

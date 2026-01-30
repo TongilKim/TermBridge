@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import type { ImageAttachment } from '@termbridge/shared';
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -18,7 +19,7 @@ export class SdkSession extends EventEmitter {
     this.options = options;
   }
 
-  async sendPrompt(prompt: string): Promise<void> {
+  async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
     if (this.isProcessing) {
       this.emit('output', '\n[TermBridge] Previous request still processing...\n');
       return;
@@ -40,8 +41,55 @@ export class SdkSession extends EventEmitter {
         queryOptions.resume = this.sessionId;
       }
 
+      // Build the prompt - either plain string or async iterable for images
+      let queryPrompt: string | AsyncIterable<{ type: 'user'; message: { role: 'user'; content: unknown }; parent_tool_use_id: null; session_id: string }>;
+
+      if (attachments && attachments.length > 0) {
+        // Build content blocks array for multi-modal input
+        const contentBlocks: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
+
+        // Add images first (Claude processes them in order)
+        for (const attachment of attachments) {
+          contentBlocks.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: attachment.mediaType,
+              data: attachment.data,
+            },
+          });
+        }
+
+        // Add text if provided
+        if (prompt.trim()) {
+          contentBlocks.push({
+            type: 'text',
+            text: prompt,
+          });
+        }
+
+        // Create async iterable for SDKUserMessage
+        const sessionId = this.sessionId || '';
+        async function* createUserMessage() {
+          yield {
+            type: 'user' as const,
+            message: {
+              role: 'user' as const,
+              content: contentBlocks,
+            },
+            parent_tool_use_id: null,
+            session_id: sessionId,
+          };
+        }
+
+        queryPrompt = createUserMessage();
+      } else {
+        // Simple string prompt (original behavior)
+        queryPrompt = prompt;
+      }
+
       for await (const message of query({
-        prompt,
+        prompt: queryPrompt,
         options: queryOptions,
       })) {
         // Handle different message types based on the SDK types

@@ -4,7 +4,7 @@ import { SdkSession } from './sdk-session.js';
 import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { RealtimeClient } from '../realtime/client.js';
-import type { Session, Machine, RealtimeMessage } from '@termbridge/shared';
+import type { Session, Machine, RealtimeMessage, ImageAttachment } from '@termbridge/shared';
 import { NOTIFICATION_TYPES } from '@termbridge/shared';
 
 export interface DaemonOptions {
@@ -100,12 +100,13 @@ export class Daemon extends EventEmitter {
 
     // Wire up input from mobile
     this.realtimeClient.on('input', async (message: RealtimeMessage) => {
-      if (message.content) {
-        // Remove trailing newline/carriage return for SDK
-        const prompt = message.content.replace(/[\r\n]+$/, '');
-        if (prompt.trim()) {
-          await this.sdkSession.sendPrompt(prompt);
-        }
+      // Remove trailing newline/carriage return for SDK
+      const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
+      const attachments = message.attachments;
+
+      // Send if there's text or attachments
+      if (prompt.trim() || (attachments && attachments.length > 0)) {
+        await this.sdkSession.sendPrompt(prompt, attachments);
       }
     });
 
@@ -153,8 +154,8 @@ export class Daemon extends EventEmitter {
     this.emit('stopped');
   }
 
-  async sendPrompt(prompt: string): Promise<void> {
-    await this.sdkSession.sendPrompt(prompt);
+  async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
+    await this.sdkSession.sendPrompt(prompt, attachments);
   }
 
   isRunning(): boolean {

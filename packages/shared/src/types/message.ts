@@ -19,6 +19,13 @@ export type RealtimeMessageType =
 export interface RealtimeMessage {
   type: RealtimeMessageType;
   content?: string;
+  attachments?: ImageAttachment[];
   timestamp: number;
   seq: number;
+}
+
+export interface ImageAttachment {
+  type: 'image';
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  data: string;
 }
