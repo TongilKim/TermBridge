@@ -93,6 +93,12 @@ export class Daemon extends EventEmitter {
       this.emit('error', error);
     });
 
+    // Broadcast commands when they're updated from init message (includes plugins/skills)
+    this.sdkSession.on('commands-updated', async () => {
+      console.log('[DEBUG] Commands updated from init message, broadcasting...');
+      await this.broadcastCommands();
+    });
+
     this.sdkSession.on('complete', async () => {
       // Session query completed, ready for next input
       if (this.options.hybrid !== false) {
