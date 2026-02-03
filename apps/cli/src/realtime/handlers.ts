@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { RealtimeMessage, RealtimeMessageType } from '@termbridge/shared';
+import type { RealtimeMessage, RealtimeMessageType } from 'termbridge-shared';
 
 export type HandlerCallback = (message: RealtimeMessage) => void;
 

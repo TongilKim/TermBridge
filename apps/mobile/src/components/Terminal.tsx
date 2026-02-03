@@ -13,7 +13,7 @@ import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useConnectionStore } from '../stores/connectionStore';
-import type { RealtimeMessage } from '@termbridge/shared';
+import type { RealtimeMessage } from 'termbridge-shared';
 
 interface TerminalProps {
   maxLines?: number;

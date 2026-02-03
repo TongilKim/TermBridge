@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, ImageAttachment, PermissionMode, SlashCommand } from '@termbridge/shared';
-import { REALTIME_CHANNELS } from '@termbridge/shared';
+import type { RealtimeMessage, ImageAttachment, PermissionMode, SlashCommand } from 'termbridge-shared';
+import { REALTIME_CHANNELS } from 'termbridge-shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 

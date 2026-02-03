@@ -4,8 +4,8 @@ import { SdkSession } from './sdk-session.js';
 import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { RealtimeClient } from '../realtime/client.js';
-import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from '@termbridge/shared';
-import { NOTIFICATION_TYPES } from '@termbridge/shared';
+import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from 'termbridge-shared';
+import { NOTIFICATION_TYPES } from 'termbridge-shared';
 
 export interface DaemonOptions {
   supabase: SupabaseClient;

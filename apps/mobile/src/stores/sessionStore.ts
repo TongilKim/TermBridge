@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import type { Session } from '@termbridge/shared';
+import type { Session } from 'termbridge-shared';
 
 interface SessionStoreState {
   sessions: Session[];

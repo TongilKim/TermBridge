@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageHandler } from '../realtime/handlers.js';
-import type { RealtimeMessage } from '@termbridge/shared';
+import type { RealtimeMessage } from 'termbridge-shared';
 
 describe('MessageHandler', () => {
   let handler: MessageHandler;

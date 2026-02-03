@@ -17,7 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useConnectionStore } from '../stores/connectionStore';
 import { convertImageToBase64 } from '../utils/imageUtils';
 import { CommandPicker } from './CommandPicker';
-import type { PermissionMode, SlashCommand } from '@termbridge/shared';
+import type { PermissionMode, SlashCommand } from 'termbridge-shared';
 
 // Helper function to get human-readable mode label
 function getModeLabel(mode: PermissionMode | null): string | null {

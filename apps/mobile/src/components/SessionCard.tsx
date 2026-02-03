@@ -12,7 +12,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import type { Session } from '@termbridge/shared';
+import type { Session } from 'termbridge-shared';
 import { useSessionStore } from '../stores/sessionStore';
 
 interface SessionCardProps {

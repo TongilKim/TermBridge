@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ImageAttachment, SlashCommand } from '@termbridge/shared';
+import type { ImageAttachment, SlashCommand } from 'termbridge-shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({

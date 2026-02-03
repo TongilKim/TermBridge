@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, PermissionMode, SlashCommand } from '@termbridge/shared';
-import { REALTIME_CHANNELS } from '@termbridge/shared';
+import type { RealtimeMessage, PermissionMode, SlashCommand } from 'termbridge-shared';
+import { REALTIME_CHANNELS } from 'termbridge-shared';
 
 export interface RealtimeClientOptions {
   supabase: SupabaseClient;

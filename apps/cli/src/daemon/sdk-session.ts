@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query, SlashCommand as SDKSlashCommand } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment, PermissionMode, SlashCommand } from '@termbridge/shared';
+import type { ImageAttachment, PermissionMode, SlashCommand } from 'termbridge-shared';
 
 export interface SdkSessionOptions {
   cwd: string;
