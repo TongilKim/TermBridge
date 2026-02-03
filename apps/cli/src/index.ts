@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
 import { config } from 'dotenv';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Load .env from CLI package root (quiet mode to suppress dotenvx tips)
 config({ path: resolve(__dirname, '../.env'), quiet: true });
