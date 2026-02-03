@@ -33,6 +33,19 @@ pnpm --filter @tongil_kim/termbridge build
 pnpm --filter @tongil_kim/termbridge test
 ```
 
+### Local Dev
+
+Run in separate terminals:
+
+```bash
+# Terminal 1 - CLI
+cd apps/cli && pnpm start
+
+# Terminal 2 - Mobile
+cd apps/mobile && pnpm start
+# Or with tunnel: pnpm start:tunnel
+```
+
 ## Release Procedure
 
 ### Automatic Release (Recommended)

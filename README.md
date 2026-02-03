@@ -157,6 +157,25 @@ eas build --platform android
 
 ## Development
 
+### Local Development
+
+Run CLI and mobile app in separate terminals:
+
+**Terminal 1 (CLI):**
+```bash
+cd apps/cli
+pnpm start
+```
+
+**Terminal 2 (Mobile):**
+```bash
+cd apps/mobile
+pnpm start
+
+# Or with tunnel for different network:
+pnpm start:tunnel
+```
+
 ### Running Tests
 
 ```bash
