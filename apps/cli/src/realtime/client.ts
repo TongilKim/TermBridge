@@ -120,12 +120,15 @@ export class RealtimeClient extends EventEmitter {
 
     // Persist message to database for history
     try {
-      await this.supabase.from('messages').insert({
+      const { error } = await this.supabase.from('messages').insert({
         session_id: this.sessionId,
         type: message.type,
         content: message.content,
         seq: message.seq,
       });
+      if (error) {
+        console.warn('[WARN] Failed to persist message:', error.message);
+      }
     } catch (error) {
       // Log but don't fail - message persistence is secondary to realtime
       console.warn('[WARN] Failed to persist message:', error);
