@@ -7,6 +7,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "dev": "pnpm -r dev",
+    "dev:test": "pnpm --filter termbridge-shared build && pnpm --filter @tongil_kim/termbridge build && concurrently -n cli,mobile -c blue,green \"termbridge start\" \"pnpm --filter @termbridge/mobile start\"",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
     "cli": "pnpm --filter termbridge",
@@ -14,6 +15,7 @@
     "shared": "pnpm --filter termbridge-shared"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "typescript": "^5.3.3"
   },
   "engines": {
