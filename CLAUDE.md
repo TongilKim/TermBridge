@@ -73,3 +73,45 @@ When approaching a new feature:
 Follow this process precisely, always prioritizing clean, well-tested code over quick implementation.
 
 Always write one test at a time, make it run, then improve structure. Always run all the tests (except long-running tests) each time.
+
+# RELEASE PROCEDURE
+
+To release a new version to npm and Homebrew:
+
+## Automatic Release (Recommended)
+
+1. Update version in `apps/cli/package.json`
+2. Commit the version bump: `git commit -m "chore: Bump version to X.Y.Z"`
+3. Create and push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+4. GitHub Actions will automatically:
+   - Run tests
+   - Publish to npm
+   - Update the Homebrew formula with correct SHA256
+
+## Manual Release (If tag trigger fails)
+
+1. Trigger the workflow manually:
+   ```bash
+   gh workflow run release.yml -f version=X.Y.Z
+   ```
+
+2. Monitor the workflow:
+   ```bash
+   gh run watch
+   ```
+
+## Verify Release
+
+```bash
+# Check npm version
+npm view @tongil_kim/termbridge version
+
+# Check Homebrew formula
+curl -s https://raw.githubusercontent.com/TongilKim/homebrew-termbridge/main/Formula/termbridge.rb | head -6
+```
+
+## Required Secrets
+
+The following GitHub secrets must be configured:
+- `NPM_TOKEN`: npm access token for publishing
+- `HOMEBREW_TAP_TOKEN`: GitHub PAT with repo scope for updating homebrew-termbridge
