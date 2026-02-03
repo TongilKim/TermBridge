@@ -124,7 +124,6 @@ export class SdkSession extends EventEmitter {
 
           // Capture slash commands from init message (includes plugins/skills)
           if ('slash_commands' in message && Array.isArray(message.slash_commands)) {
-            console.log('[DEBUG] Init message has slash_commands:', message.slash_commands.length, message.slash_commands);
             // slash_commands can be either strings or objects
             this.cachedCommands = message.slash_commands.map((cmd: unknown) => {
               if (typeof cmd === 'string') {
@@ -234,12 +233,11 @@ export class SdkSession extends EventEmitter {
             commands.push({ name, description, argumentHint: '' });
           }
         }
-      } catch (error) {
-        console.log('[DEBUG] Error scanning', dir, ':', error);
+      } catch {
+        // Ignore errors scanning directories
       }
     }
 
-    console.log('[DEBUG] Found', commands.length, 'custom commands from file system');
     return commands;
   }
 
@@ -332,16 +330,13 @@ export class SdkSession extends EventEmitter {
 
     // Add cached commands from init message
     if (this.cachedCommands && this.cachedCommands.length > 0) {
-      console.log('[DEBUG] Using cached commands from init:', this.cachedCommands.length);
       const existingNames = new Set(allCommands.map(c => c.name));
       const newCached = this.cachedCommands.filter(c => !existingNames.has(c.name));
       allCommands = [...allCommands, ...newCached];
     } else if (this.currentQuery) {
       // Try SDK supportedCommands() as fallback
       try {
-        console.log('[DEBUG] Calling SDK supportedCommands()...');
         const sdkCommands = await this.currentQuery.supportedCommands();
-        console.log('[DEBUG] SDK returned', sdkCommands.length, 'commands');
 
         const existingNames = new Set(allCommands.map(c => c.name));
         for (const cmd of sdkCommands) {
@@ -353,8 +348,8 @@ export class SdkSession extends EventEmitter {
             });
           }
         }
-      } catch (error) {
-        console.log('[DEBUG] SDK supportedCommands() error:', error);
+      } catch {
+        // Ignore SDK supportedCommands() errors
       }
     }
 
@@ -363,7 +358,6 @@ export class SdkSession extends EventEmitter {
     const uniqueFallbacks = fallbackCommands.filter(c => !existingNames.has(c.name));
     allCommands = [...allCommands, ...uniqueFallbacks];
 
-    console.log('[DEBUG] Total commands:', allCommands.length);
     return allCommands;
   }
 }

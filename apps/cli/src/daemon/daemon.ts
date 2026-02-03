@@ -80,7 +80,7 @@ export class Daemon extends EventEmitter {
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcast(data);
-        } catch (error) {
+        } catch {
           // Silently handle broadcast errors
         }
       }
@@ -95,7 +95,6 @@ export class Daemon extends EventEmitter {
 
     // Broadcast commands when they're updated from init message (includes plugins/skills)
     this.sdkSession.on('commands-updated', async () => {
-      console.log('[DEBUG] Commands updated from init message, broadcasting...');
       await this.broadcastCommands();
     });
 
@@ -109,7 +108,6 @@ export class Daemon extends EventEmitter {
       // This updates the fallback commands with the full list from the SDK
       if (!this.sdkCommandsBroadcast && this.realtimeClient) {
         this.sdkCommandsBroadcast = true;
-        console.log('[DEBUG] Broadcasting SDK commands after first query completion');
         await this.broadcastCommands();
       }
     });
@@ -119,7 +117,7 @@ export class Daemon extends EventEmitter {
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcastMode(mode);
-        } catch (error) {
+        } catch {
           // Silently handle broadcast errors
         }
       }
@@ -127,8 +125,6 @@ export class Daemon extends EventEmitter {
 
     // Wire up input from mobile
     this.realtimeClient.on('input', async (message: RealtimeMessage) => {
-      console.log('[DEBUG] Received input from mobile:', message.type, 'seq:', message.seq);
-
       // Broadcast commands on first message from mobile if not already done
       if (!this.commandsBroadcast) {
         this.commandsBroadcast = true;
@@ -137,14 +133,13 @@ export class Daemon extends EventEmitter {
 
       // Handle mode change requests
       if (message.type === 'mode-change' && message.permissionMode) {
-        console.log('[DEBUG] Mode change request:', message.permissionMode);
         this.sdkSession.setPermissionMode(message.permissionMode);
         // Broadcast the new mode back to confirm
         if (this.realtimeClient) {
           try {
             await this.realtimeClient.broadcastMode(message.permissionMode);
-          } catch (error) {
-            console.log('[DEBUG] Failed to broadcast mode:', error);
+          } catch {
+            // Silently handle broadcast errors
           }
         }
         return;
@@ -152,7 +147,6 @@ export class Daemon extends EventEmitter {
 
       // Handle commands request
       if (message.type === 'commands-request') {
-        console.log('[DEBUG] Received commands-request from mobile');
         await this.broadcastCommands();
         return;
       }
@@ -161,26 +155,19 @@ export class Daemon extends EventEmitter {
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;
 
-      console.log('[DEBUG] Processing input - prompt length:', prompt.length, 'attachments:', attachments?.length || 0);
-
       // Send if there's text or attachments
       if (prompt.trim() || (attachments && attachments.length > 0)) {
-        console.log('[DEBUG] Sending to SDK session...');
         await this.sdkSession.sendPrompt(prompt, attachments);
-        console.log('[DEBUG] SDK session sendPrompt completed');
-      } else {
-        console.log('[DEBUG] Skipping empty input');
       }
     });
 
     // Connect to realtime
     await this.realtimeClient.connect();
-    console.log('[DEBUG] Realtime enabled:', this.realtimeClient.isRealtimeEnabled());
 
     // Broadcast initial permission mode
     try {
       await this.realtimeClient.broadcastMode(this.sdkSession.getPermissionMode());
-    } catch (error) {
+    } catch {
       // Silently handle broadcast errors
     }
 
@@ -246,17 +233,13 @@ export class Daemon extends EventEmitter {
 
   private async broadcastCommands(): Promise<void> {
     if (!this.realtimeClient) {
-      console.log('[DEBUG] broadcastCommands: No realtime client');
       return;
     }
 
     try {
       const commands = await this.sdkSession.getSupportedCommands();
-      console.log('[DEBUG] broadcastCommands: Got', commands.length, 'commands');
       await this.realtimeClient.broadcastCommands(commands);
-      console.log('[DEBUG] broadcastCommands: Broadcast complete');
-    } catch (error) {
-      console.log('[DEBUG] broadcastCommands error:', error);
+    } catch {
       // Silently handle broadcast errors
     }
   }

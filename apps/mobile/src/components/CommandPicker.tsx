@@ -30,8 +30,6 @@ export function CommandPicker({
   const isDark = colorScheme === 'dark';
   const [search, setSearch] = useState('');
 
-  console.log('[CommandPicker] visible:', visible, 'commands:', commands.length);
-
   const filteredCommands = useMemo(() => {
     if (!search.trim()) {
       return commands;

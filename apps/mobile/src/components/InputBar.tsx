@@ -60,8 +60,6 @@ export function InputBar({ disabled }: InputBarProps) {
   const isDisabled = disabled || state !== 'connected' || isSending || isTyping;
   const modeLabel = getModeLabel(permissionMode);
 
-  console.log('[InputBar] commands from store:', commands.length);
-
   const handleModePress = () => {
     if (isDisabled) return;
 
@@ -95,14 +93,11 @@ export function InputBar({ disabled }: InputBarProps) {
 
   const handleSend = async () => {
     if (!input.trim() || isDisabled || isSending) {
-      console.log('[InputBar] handleSend: Skipping - input empty or disabled or already sending');
       return;
     }
 
     setIsSending(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    console.log('[InputBar] handleSend: Starting with', selectedImages.length, 'images');
 
     try {
       // Convert images to base64 attachments
@@ -110,18 +105,14 @@ export function InputBar({ disabled }: InputBarProps) {
         selectedImages.map((uri) => convertImageToBase64(uri))
       );
 
-      const totalSize = attachments.reduce((sum, att) => sum + att.data.length, 0);
-      console.log('[InputBar] handleSend: Converted images, total size:', Math.round(totalSize / 1024), 'KB');
-
       const messageContent = input.trim();
       setInput('');
       setSelectedImages([]);
       setInputHeight(MIN_INPUT_HEIGHT);
 
       await sendInput(messageContent + '\n', attachments.length > 0 ? attachments : undefined);
-      console.log('[InputBar] handleSend: sendInput completed');
-    } catch (error) {
-      console.log('[InputBar] handleSend: Error:', error);
+    } catch {
+      // Error handling - silently fail
     } finally {
       setIsSending(false);
     }
