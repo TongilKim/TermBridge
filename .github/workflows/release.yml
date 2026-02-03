@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.8)'
+        required: true
 
 jobs:
   release:
@@ -36,9 +41,14 @@ jobs:
       - name: Build
         run: pnpm --filter @tongil_kim/termbridge build
 
-      - name: Extract version from tag
+      - name: Extract version from tag or input
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Update package version
         working-directory: apps/cli
