@@ -31,10 +31,15 @@ export function createSetupCommand(): Command {
         logger.info('================');
         logger.info('');
         logger.info('Enter your Supabase credentials to connect TermBridge.');
-        logger.info('You can find these in your Supabase project settings.');
+        logger.info('');
+        logger.info('To find your credentials:');
+        logger.info('  1. Go to your Supabase project dashboard');
+        logger.info('  2. Click "Project Settings" (gear icon)');
+        logger.info('  3. Click "API" in the sidebar');
+        logger.info('  4. Copy "Project URL" and "anon public" key');
         logger.info('');
 
-        const url = await prompt('Supabase URL: ');
+        const url = await prompt('Supabase Project URL (e.g., https://xxxx.supabase.co): ');
         if (!url) {
           logger.error('Supabase URL is required');
           process.exit(1);
@@ -42,9 +47,31 @@ export function createSetupCommand(): Command {
 
         // Validate URL format
         try {
-          new URL(url);
+          const parsedUrl = new URL(url);
+
+          // Check if it's a dashboard URL (common mistake)
+          if (parsedUrl.hostname === 'supabase.com') {
+            logger.error('');
+            logger.error('This looks like a dashboard URL, not the API URL.');
+            logger.error('');
+            logger.error('Please use the Project URL from Settings > API, which looks like:');
+            logger.error('  https://your-project-id.supabase.co');
+            logger.error('');
+            logger.error('NOT the dashboard URL:');
+            logger.error('  https://supabase.com/dashboard/project/...');
+            process.exit(1);
+          }
+
+          // Validate it ends with .supabase.co
+          if (!parsedUrl.hostname.endsWith('.supabase.co')) {
+            logger.error('');
+            logger.error('Invalid Supabase URL format.');
+            logger.error('The URL should end with .supabase.co');
+            logger.error('Example: https://your-project-id.supabase.co');
+            process.exit(1);
+          }
         } catch {
-          logger.error('Invalid URL format. Please enter a valid URL (e.g., https://xxx.supabase.co)');
+          logger.error('Invalid URL format. Please enter a valid URL (e.g., https://xxxx.supabase.co)');
           process.exit(1);
         }
 
