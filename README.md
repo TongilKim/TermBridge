@@ -77,15 +77,30 @@ pnpm install
 pnpm build
 ```
 
-### Environment Setup
+### CLI Setup
 
-Create `.env` files:
+After installation, run the setup command to configure your Supabase credentials:
 
 ```bash
-# apps/cli/.env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
+termbridge setup
+```
 
+This will prompt you for:
+- **Supabase Project URL**: Found in Supabase Dashboard → Settings → API (e.g., `https://xxxx.supabase.co`)
+- **Supabase Anon Key**: Found in Supabase Dashboard → Settings → API → `anon` `public` key
+
+Alternatively, you can set environment variables:
+
+```bash
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_ANON_KEY=your-anon-key
+```
+
+### Mobile App Setup
+
+Create `.env` file for the mobile app:
+
+```bash
 # apps/mobile/.env
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -148,19 +163,9 @@ eas build --platform android
 # Run all tests
 pnpm test
 
-# Run specific package tests
-pnpm --filter @termbridge/cli test
-pnpm --filter @termbridge/mobile test
-pnpm --filter @termbridge/tests test
+# Run CLI tests
+pnpm --filter @tongil_kim/termbridge test
 ```
-
-### Test Summary
-
-- **Total Tests**: 196
-  - Shared Package: 16 tests
-  - CLI Package: 105 tests
-  - Mobile App: 16 tests
-  - Integration Tests: 59 tests
 
 ## Architecture
 
