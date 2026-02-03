@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import * as readline from 'readline';
 import { Daemon } from '../daemon/daemon.js';
-import { Config } from '../utils/config.js';
+import { Config, ConfigurationError } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
 import { Spinner } from '../utils/spinner.js';
 import {
@@ -42,6 +42,8 @@ export function createStartCommand(): Command {
       const spinner = new Spinner('Starting TermBridge...');
 
       try {
+        config.requireConfiguration();
+
         spinner.start();
 
         const supabaseUrl = config.getSupabaseUrl();
@@ -232,6 +234,11 @@ export function createStartCommand(): Command {
           promptForInput();
         }
       } catch (error) {
+        if (error instanceof ConfigurationError) {
+          spinner.stop();
+          logger.error(error.message);
+          process.exit(1);
+        }
         spinner.fail('Failed to start');
         logger.error(
           `${error instanceof Error ? error.message : 'Unknown error'}`

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { createClient } from '@supabase/supabase-js';
 import * as readline from 'readline';
-import { Config } from '../utils/config.js';
+import { Config, ConfigurationError } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
 
 function prompt(question: string): Promise<string> {
@@ -70,6 +70,8 @@ export function createLoginCommand(): Command {
     const logger = new Logger();
 
     try {
+      config.requireConfiguration();
+
       const supabaseUrl = config.getSupabaseUrl();
       const supabaseKey = config.getSupabaseAnonKey();
 
@@ -106,6 +108,10 @@ export function createLoginCommand(): Command {
         }
       }
     } catch (error) {
+      if (error instanceof ConfigurationError) {
+        logger.error(error.message);
+        process.exit(1);
+      }
       logger.error(
         `Login failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );

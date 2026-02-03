@@ -2,12 +2,21 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+
 interface ConfigData {
   machineId?: string;
   sessionTokens?: {
     accessToken: string;
     refreshToken: string;
   };
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
 }
 
 export class Config {
@@ -40,7 +49,8 @@ export class Config {
   }
 
   getSupabaseUrl(): string {
-    const url = process.env['SUPABASE_URL'];
+    // Prefer env var over config file
+    const url = process.env['SUPABASE_URL'] || this.data.supabaseUrl;
     if (!url) {
       throw new Error('SUPABASE_URL environment variable is not set');
     }
@@ -56,11 +66,36 @@ export class Config {
   }
 
   getSupabaseAnonKey(): string {
-    const key = process.env['SUPABASE_ANON_KEY'];
+    // Prefer env var over config file
+    const key = process.env['SUPABASE_ANON_KEY'] || this.data.supabaseAnonKey;
     if (!key) {
       throw new Error('SUPABASE_ANON_KEY environment variable is not set');
     }
     return key;
+  }
+
+  setSupabaseCredentials(credentials: { url: string; anonKey: string }): void {
+    this.data.supabaseUrl = credentials.url;
+    this.data.supabaseAnonKey = credentials.anonKey;
+    this.saveConfig();
+  }
+
+  isConfigured(): boolean {
+    const hasEnvVars = !!(process.env['SUPABASE_URL'] && process.env['SUPABASE_ANON_KEY']);
+    const hasConfigFile = !!(this.data.supabaseUrl && this.data.supabaseAnonKey);
+    return hasEnvVars || hasConfigFile;
+  }
+
+  requireConfiguration(): void {
+    if (!this.isConfigured()) {
+      throw new ConfigurationError(
+        'TermBridge is not configured.\n\n' +
+          'Please run "termbridge setup" to configure your Supabase credentials,\n' +
+          'or set the following environment variables:\n' +
+          '  - SUPABASE_URL\n' +
+          '  - SUPABASE_ANON_KEY'
+      );
+    }
   }
 
   getMachineId(): string | undefined {

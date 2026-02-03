@@ -22,6 +22,7 @@ import { createStartCommand } from './commands/start.js';
 import { createStopCommand } from './commands/stop.js';
 import { createStatusCommand } from './commands/status.js';
 import { createLoginCommand } from './commands/login.js';
+import { createSetupCommand } from './commands/setup.js';
 
 const program = new Command();
 
@@ -30,12 +31,13 @@ program
   .description('Remote control for Claude Code CLI')
   .version('0.1.0');
 
+program.addCommand(createSetupCommand());
 program.addCommand(createStartCommand());
 program.addCommand(createStopCommand());
 program.addCommand(createStatusCommand());
 program.addCommand(createLoginCommand());
 
 // Only parse when run directly (not when imported as library)
-if (process.argv[1]?.includes('termbridge') || process.argv[1]?.endsWith('/index.js')) {
+if (process.argv[1]?.includes('termbridge') || process.argv[1]?.endsWith('/index.js') || process.argv[1]?.endsWith('/index.ts')) {
   program.parse();
 }

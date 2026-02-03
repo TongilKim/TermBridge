@@ -3,6 +3,7 @@ import { createStartCommand } from '../commands/start.js';
 import { createStopCommand } from '../commands/stop.js';
 import { createStatusCommand } from '../commands/status.js';
 import { createLoginCommand } from '../commands/login.js';
+import { createSetupCommand } from '../commands/setup.js';
 
 // Mock node-pty
 vi.mock('node-pty', () => ({
@@ -83,6 +84,19 @@ describe('CLI Commands', () => {
     it('should have description', () => {
       const cmd = createLoginCommand();
       expect(cmd.description()).toBe('Authenticate with TermBridge');
+    });
+  });
+
+  describe('setup command', () => {
+    it('should create setup command', () => {
+      const cmd = createSetupCommand();
+      expect(cmd).toBeDefined();
+      expect(cmd.name()).toBe('setup');
+    });
+
+    it('should have description', () => {
+      const cmd = createSetupCommand();
+      expect(cmd.description()).toBe('Configure TermBridge with Supabase credentials');
     });
   });
 });

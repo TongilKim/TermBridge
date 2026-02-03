@@ -14,6 +14,16 @@ vi.mock('node-pty', () => ({
   })),
 }));
 
+// Mock sleep-prevention to prevent prompt blocking in tests
+vi.mock('../utils/sleep-prevention.js', () => ({
+  promptYesNo: vi.fn().mockResolvedValue(false),
+  enableSleepPrevention: vi.fn().mockReturnValue(false),
+  disableSleepPrevention: vi.fn(),
+  startCaffeinate: vi.fn().mockReturnValue({ on: vi.fn() }),
+  stopCaffeinate: vi.fn(),
+  isMacOS: vi.fn().mockReturnValue(false),
+}));
+
 // Mock process.exit to prevent test from exiting
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => {
   throw new Error('process.exit called');

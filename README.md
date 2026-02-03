@@ -50,10 +50,25 @@ TermBridge/
 
 ### Installation
 
+**Using npm (Recommended)**
+
+```bash
+npm install -g @tongil_kim/termbridge
+```
+
+**Using Homebrew (macOS)**
+
+```bash
+brew tap TongilKim/termbridge
+brew install termbridge
+```
+
+**From source**
+
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/TermBridge.git
-cd TermBridge
+git clone https://github.com/TongilKim/termbridge.git
+cd termbridge
 
 # Install dependencies
 pnpm install
@@ -91,6 +106,9 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ### CLI Usage
 
 ```bash
+# First-time setup (configure Supabase credentials)
+termbridge setup
+
 # Authenticate
 termbridge login
 
