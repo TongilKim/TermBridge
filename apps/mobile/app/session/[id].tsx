@@ -20,11 +20,10 @@ export default function SessionScreen() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  const { connect, disconnect, clearMessages, state } = useConnectionStore();
+  const { connect, disconnect, state } = useConnectionStore();
 
   useEffect(() => {
     if (id) {
-      clearMessages();
       connect(id);
     }
 

@@ -111,17 +111,30 @@ export class RealtimeClient extends EventEmitter {
       throw new Error('Not connected');
     }
 
-    // Skip broadcasting if realtime is not enabled
-    if (!this.realtimeEnabled) {
-      return;
-    }
-
     const message: RealtimeMessage = {
       type: 'output',
       content,
       timestamp: Date.now(),
       seq: ++this.seq,
     };
+
+    // Persist message to database for history
+    try {
+      await this.supabase.from('messages').insert({
+        session_id: this.sessionId,
+        type: message.type,
+        content: message.content,
+        seq: message.seq,
+      });
+    } catch (error) {
+      // Log but don't fail - message persistence is secondary to realtime
+      console.warn('[WARN] Failed to persist message:', error);
+    }
+
+    // Skip realtime broadcasting if not enabled
+    if (!this.realtimeEnabled) {
+      return;
+    }
 
     try {
       await this.outputChannel.send({

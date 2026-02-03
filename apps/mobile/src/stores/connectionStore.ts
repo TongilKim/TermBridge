@@ -42,7 +42,8 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
   connect: async (sessionId: string) => {
     try {
-      set({ state: 'connecting', sessionId, error: null });
+      // Clear previous session state
+      set({ state: 'connecting', sessionId, error: null, messages: [], lastSeq: 0 });
 
       // First check if the session is still active
       const { data: session, error: sessionError } = await supabase
@@ -58,6 +59,24 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       if (session.status !== 'active') {
         set({ state: 'disconnected', error: null });
         return;
+      }
+
+      // Fetch message history from database
+      const { data: historicalMessages, error: messagesError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('seq', { ascending: true });
+
+      if (!messagesError && historicalMessages && historicalMessages.length > 0) {
+        const messages: RealtimeMessage[] = historicalMessages.map((msg) => ({
+          type: msg.type as RealtimeMessage['type'],
+          content: msg.content,
+          timestamp: new Date(msg.created_at).getTime(),
+          seq: msg.seq,
+        }));
+        const lastSeq = historicalMessages[historicalMessages.length - 1].seq;
+        set({ messages, lastSeq });
       }
 
       // Clean up existing channels
@@ -148,6 +167,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       return;
     }
 
+    const sessionId = get().sessionId;
     const message: RealtimeMessage = {
       type: 'input',
       content,
@@ -162,6 +182,18 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       messages: [...state.messages, message],
       isTyping: true,
     }));
+
+    // Persist input message to database for history
+    if (sessionId) {
+      supabase.from('messages').insert({
+        session_id: sessionId,
+        type: message.type,
+        content: message.content,
+        seq: message.seq,
+      }).then(() => {}).catch(() => {
+        // Silent fail - persistence is secondary
+      });
+    }
 
     try {
       await inputChannel.send({

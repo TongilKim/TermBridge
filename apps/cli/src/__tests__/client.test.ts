@@ -30,7 +30,6 @@ describe('RealtimeClient', () => {
       on: vi.fn().mockReturnThis(),
     };
 
-    let channelCount = 0;
     mockSupabase = {
       channel: vi.fn((name) => {
         if (name.includes('output')) {
@@ -39,6 +38,7 @@ describe('RealtimeClient', () => {
         return mockInputChannel as RealtimeChannel;
       }),
       removeChannel: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn().mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: null }) }),
     };
   });
 
@@ -397,6 +397,7 @@ describe('RealtimeClient', () => {
         return errorInputChannel as RealtimeChannel;
       }),
       removeChannel: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn().mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: null }) }),
     };
 
     const client = new RealtimeClient({
@@ -406,11 +407,13 @@ describe('RealtimeClient', () => {
 
     await client.connect();
 
-    // Broadcast should not throw and should not send
+    // Broadcast should not throw and should not send via realtime
     await client.broadcast('test output');
 
     // send() should NOT have been called since realtime is disabled
     expect(errorOutputChannel.send).not.toHaveBeenCalled();
+    // But message should still be persisted
+    expect(errorSupabase.from).toHaveBeenCalledWith('messages');
   });
 
   describe('broadcastCommands', () => {
@@ -502,7 +505,7 @@ describe('RealtimeClient', () => {
     });
   });
 
-  it('should not increment sequence number when realtime is disabled', async () => {
+  it('should persist messages but not send via realtime when realtime is disabled', async () => {
     // Create channel that returns CHANNEL_ERROR (realtime disabled)
     const errorOutputChannel = {
       subscribe: vi.fn((cb) => {
@@ -522,6 +525,7 @@ describe('RealtimeClient', () => {
       on: vi.fn().mockReturnThis(),
     };
 
+    const mockInsert = vi.fn().mockResolvedValue({ error: null });
     const errorSupabase = {
       channel: vi.fn((name) => {
         if (name.includes('output')) {
@@ -530,6 +534,7 @@ describe('RealtimeClient', () => {
         return errorInputChannel as RealtimeChannel;
       }),
       removeChannel: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn().mockReturnValue({ insert: mockInsert }),
     };
 
     const client = new RealtimeClient({
@@ -543,7 +548,14 @@ describe('RealtimeClient', () => {
 
     await client.broadcast('test output');
 
-    // Sequence should NOT increment when realtime is disabled
-    expect(client.getSeq()).toBe(0);
+    // Sequence should increment (message is persisted for history)
+    expect(client.getSeq()).toBe(1);
+
+    // Message should be persisted to database
+    expect(errorSupabase.from).toHaveBeenCalledWith('messages');
+    expect(mockInsert).toHaveBeenCalled();
+
+    // But NOT sent via realtime channel
+    expect(errorOutputChannel.send).not.toHaveBeenCalled();
   });
 });
