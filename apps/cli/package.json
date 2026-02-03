@@ -33,7 +33,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
-    "dev": "tsc --watch",
+    "dev": "tsup && node dist/index.js start",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist",
