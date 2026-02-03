@@ -26,7 +26,11 @@ export type RealtimeMessageType =
   | 'mode'
   | 'mode-change'
   | 'commands'
-  | 'commands-request';
+  | 'commands-request'
+  | 'model'
+  | 'model-change'
+  | 'models'
+  | 'models-request';
 
 export interface RealtimeMessage {
   type: RealtimeMessageType;
@@ -34,8 +38,16 @@ export interface RealtimeMessage {
   attachments?: ImageAttachment[];
   permissionMode?: PermissionMode;
   commands?: SlashCommand[];
+  model?: string;
+  availableModels?: ModelInfo[];
   timestamp: number;
   seq: number;
+}
+
+export interface ModelInfo {
+  value: string;
+  displayName: string;
+  description: string;
 }
 
 export interface ImageAttachment {

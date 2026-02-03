@@ -109,6 +109,8 @@ export class Daemon extends EventEmitter {
       if (!this.sdkCommandsBroadcast && this.realtimeClient) {
         this.sdkCommandsBroadcast = true;
         await this.broadcastCommands();
+        // Also broadcast available models now that we have an active query
+        await this.broadcastAvailableModels();
       }
     });
 
@@ -117,6 +119,17 @@ export class Daemon extends EventEmitter {
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcastMode(mode);
+        } catch {
+          // Silently handle broadcast errors
+        }
+      }
+    });
+
+    // Wire up model changes to broadcast
+    this.sdkSession.on('model', async (model: string) => {
+      if (this.realtimeClient) {
+        try {
+          await this.realtimeClient.broadcastModel(model);
         } catch {
           // Silently handle broadcast errors
         }
@@ -148,6 +161,23 @@ export class Daemon extends EventEmitter {
       // Handle commands request
       if (message.type === 'commands-request') {
         await this.broadcastCommands();
+        return;
+      }
+
+      // Handle model change requests from mobile
+      if (message.type === 'model-change' && message.model) {
+        try {
+          await this.sdkSession.setModel(message.model);
+          // Model event will be emitted by sdkSession, which triggers broadcast
+        } catch {
+          // Silently handle model change errors
+        }
+        return;
+      }
+
+      // Handle models list request from mobile
+      if (message.type === 'models-request') {
+        await this.broadcastAvailableModels();
         return;
       }
 
@@ -239,6 +269,19 @@ export class Daemon extends EventEmitter {
     try {
       const commands = await this.sdkSession.getSupportedCommands();
       await this.realtimeClient.broadcastCommands(commands);
+    } catch {
+      // Silently handle broadcast errors
+    }
+  }
+
+  private async broadcastAvailableModels(): Promise<void> {
+    if (!this.realtimeClient) {
+      return;
+    }
+
+    try {
+      const models = await this.sdkSession.getSupportedModels();
+      await this.realtimeClient.broadcastAvailableModels(models);
     } catch {
       // Silently handle broadcast errors
     }

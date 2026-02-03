@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query, SlashCommand as SDKSlashCommand } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment, PermissionMode, SlashCommand } from 'termbridge-shared';
+import type { ImageAttachment, ModelInfo, PermissionMode, SlashCommand } from 'termbridge-shared';
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -20,6 +20,7 @@ export class SdkSession extends EventEmitter {
   private currentPermissionMode: PermissionMode;
   private currentQuery: Query | null = null;
   private cachedCommands: SlashCommand[] | null = null;
+  private currentModel: string | null = null;
 
   constructor(options: SdkSessionOptions) {
     super();
@@ -34,6 +35,34 @@ export class SdkSession extends EventEmitter {
 
   getPermissionMode(): PermissionMode {
     return this.currentPermissionMode;
+  }
+
+  getModel(): string | null {
+    return this.currentModel;
+  }
+
+  async setModel(model: string): Promise<void> {
+    if (this.currentQuery) {
+      await this.currentQuery.setModel(model);
+      this.currentModel = model;
+      this.emit('model', model);
+    }
+  }
+
+  async getSupportedModels(): Promise<ModelInfo[]> {
+    if (this.currentQuery) {
+      try {
+        const models = await this.currentQuery.supportedModels();
+        return models.map((m) => ({
+          value: m.value,
+          displayName: m.displayName,
+          description: m.description,
+        }));
+      } catch {
+        // Ignore errors fetching models
+      }
+    }
+    return [];
   }
 
   async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
@@ -120,6 +149,12 @@ export class SdkSession extends EventEmitter {
           // Emit permission mode if present
           if ('permissionMode' in message) {
             this.emit('permission-mode', message.permissionMode);
+          }
+
+          // Capture and emit model from init message
+          if ('model' in message && typeof message.model === 'string') {
+            this.currentModel = message.model;
+            this.emit('model', message.model);
           }
 
           // Capture slash commands from init message (includes plugins/skills)

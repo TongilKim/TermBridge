@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
+import { ModelPicker } from '../../src/components/ModelPicker';
+
+// Format model identifier to friendly display name
+function formatModelName(model: string | null): string {
+  if (!model) return 'Model';
+  if (model.includes('opus-4')) return 'Opus 4';
+  if (model.includes('sonnet-4-5')) return 'Sonnet 4.5';
+  if (model.includes('sonnet-4-0') || model.includes('sonnet-4-2')) return 'Sonnet 4';
+  if (model.includes('haiku')) return 'Haiku 3.5';
+  // Fallback: extract model name from identifier
+  const parts = model.split('-');
+  if (parts.length >= 2) {
+    return parts.slice(1, 3).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+  }
+  return model;
+}
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
-  const { connect, disconnect, state } = useConnectionStore();
+  const { connect, disconnect, state, model, availableModels, sendModelChange, requestModels } = useConnectionStore();
 
   useEffect(() => {
     if (id) {
@@ -31,6 +48,13 @@ export default function SessionScreen() {
       disconnect();
     };
   }, [id]);
+
+  // Request available models when connected
+  useEffect(() => {
+    if (state === 'connected') {
+      requestModels();
+    }
+  }, [state]);
 
   return (
     <KeyboardAvoidingView
@@ -45,50 +69,79 @@ export default function SessionScreen() {
           <Text style={[styles.backText, isDark && styles.backTextDark]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Session</Text>
-        <View
-          style={[
-            styles.statusBadge,
-            state === 'connected'
-              ? styles.statusBadgeConnected
-              : state === 'connecting' || state === 'reconnecting'
-                ? styles.statusBadgeConnecting
-                : styles.statusBadgeDisconnected,
-          ]}
-        >
-          <View
+        <View style={styles.headerRight}>
+          {/* Model Badge */}
+          <TouchableOpacity
+            onPress={() => state === 'connected' && setShowModelPicker(true)}
+            disabled={state !== 'connected'}
             style={[
-              styles.statusDot,
-              state === 'connected'
-                ? styles.statusDotConnected
-                : state === 'connecting' || state === 'reconnecting'
-                  ? styles.statusDotConnecting
-                  : styles.statusDotDisconnected,
-            ]}
-          />
-          <Text
-            style={[
-              styles.statusText,
-              state === 'connected'
-                ? styles.statusTextConnected
-                : state === 'connecting' || state === 'reconnecting'
-                  ? styles.statusTextConnecting
-                  : styles.statusTextDisconnected,
+              styles.modelBadge,
+              isDark && styles.modelBadgeDark,
+              state !== 'connected' && styles.modelBadgeDisabled,
             ]}
           >
-            {state === 'connected'
-              ? 'Online'
-              : state === 'connecting'
-                ? 'Connecting'
-                : state === 'reconnecting'
-                  ? 'Reconnecting'
-                  : 'Offline'}
-          </Text>
+            <Text style={[styles.modelText, isDark && styles.modelTextDark]}>
+              {formatModelName(model)}
+            </Text>
+            <Text style={[styles.modelChevron, isDark && styles.modelChevronDark]}>▼</Text>
+          </TouchableOpacity>
+          {/* Status Badge */}
+          <View
+            style={[
+              styles.statusBadge,
+              state === 'connected'
+                ? styles.statusBadgeConnected
+                : state === 'connecting' || state === 'reconnecting'
+                  ? styles.statusBadgeConnecting
+                  : styles.statusBadgeDisconnected,
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                state === 'connected'
+                  ? styles.statusDotConnected
+                  : state === 'connecting' || state === 'reconnecting'
+                    ? styles.statusDotConnecting
+                    : styles.statusDotDisconnected,
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusText,
+                state === 'connected'
+                  ? styles.statusTextConnected
+                  : state === 'connecting' || state === 'reconnecting'
+                    ? styles.statusTextConnecting
+                    : styles.statusTextDisconnected,
+              ]}
+            >
+              {state === 'connected'
+                ? 'Online'
+                : state === 'connecting'
+                  ? 'Connecting'
+                  : state === 'reconnecting'
+                    ? 'Reconnecting'
+                    : 'Offline'}
+            </Text>
+          </View>
         </View>
       </View>
       <Terminal />
       <View style={{ paddingBottom: insets.bottom }}>
         <InputBar disabled={state !== 'connected'} />
       </View>
+      {/* Model Picker Modal */}
+      <ModelPicker
+        visible={showModelPicker}
+        models={availableModels}
+        currentModel={model}
+        onSelect={(selectedModel) => {
+          sendModelChange(selectedModel.value);
+          setShowModelPicker(false);
+        }}
+        onClose={() => setShowModelPicker(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -134,6 +187,42 @@ const styles = StyleSheet.create({
   },
   headerTitleDark: {
     color: '#ffffff',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // Model badge
+  modelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: '#ede9fe',
+    gap: 4,
+  },
+  modelBadgeDark: {
+    backgroundColor: '#4c1d95',
+  },
+  modelBadgeDisabled: {
+    opacity: 0.5,
+  },
+  modelText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6d28d9',
+  },
+  modelTextDark: {
+    color: '#c4b5fd',
+  },
+  modelChevron: {
+    fontSize: 10,
+    color: '#6d28d9',
+  },
+  modelChevronDark: {
+    color: '#c4b5fd',
   },
   // Status badge
   statusBadge: {

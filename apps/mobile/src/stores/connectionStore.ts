@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, ImageAttachment, PermissionMode, SlashCommand } from 'termbridge-shared';
+import type { RealtimeMessage, ImageAttachment, ModelInfo, PermissionMode, SlashCommand } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -15,13 +15,17 @@ interface ConnectionStoreState {
   isTyping: boolean;
   permissionMode: PermissionMode | null;
   commands: SlashCommand[];
+  model: string | null;
+  availableModels: ModelInfo[];
 
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
   sendInput: (content: string, attachments?: ImageAttachment[]) => Promise<void>;
   sendModeChange: (mode: PermissionMode) => Promise<void>;
+  sendModelChange: (model: string) => Promise<void>;
   requestCommands: () => Promise<void>;
+  requestModels: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -39,6 +43,8 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   isTyping: false,
   permissionMode: null,
   commands: [],
+  model: null,
+  availableModels: [],
 
   connect: async (sessionId: string) => {
     try {
@@ -103,6 +109,18 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         // Handle commands messages separately
         if (message.type === 'commands' && message.commands) {
           set({ commands: message.commands });
+          return;
+        }
+
+        // Handle model messages separately
+        if (message.type === 'model' && message.model) {
+          set({ model: message.model });
+          return;
+        }
+
+        // Handle available models list
+        if (message.type === 'models' && message.availableModels) {
+          set({ availableModels: message.availableModels });
           return;
         }
 
@@ -238,6 +256,45 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
     const message: RealtimeMessage = {
       type: 'commands-request',
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    await inputChannel.send({
+      type: 'broadcast',
+      event: 'input',
+      payload: message,
+    });
+  },
+
+  sendModelChange: async (model: string) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'model-change',
+      model,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    await inputChannel.send({
+      type: 'broadcast',
+      event: 'input',
+      payload: message,
+    });
+  },
+
+  requestModels: async () => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'models-request',
       timestamp: Date.now(),
       seq: ++seq,
     };
