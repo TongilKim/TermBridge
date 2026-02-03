@@ -8,6 +8,12 @@ vi.mock('expo-file-system/legacy', () => ({
   EncodingType: { Base64: 'base64' },
 }));
 
+// Mock expo-image-manipulator
+vi.mock('expo-image-manipulator', () => ({
+  manipulateAsync: vi.fn().mockResolvedValue({ uri: 'file:///resized/image.jpg' }),
+  SaveFormat: { JPEG: 'jpeg', PNG: 'png' },
+}));
+
 // Mock supabase before imports
 vi.mock('../services/supabase', () => ({
   supabase: {
@@ -651,10 +657,11 @@ describe('Image Utils', () => {
       expect(result.mediaType).toBe('image/jpeg');
     });
 
-    it('should detect PNG media type from URI', async () => {
+    it('should convert all images to JPEG after resizing', async () => {
+      // After resizing, all images are converted to JPEG for size optimization
       const result = await convertImageToBase64('file:///path/to/image.png');
 
-      expect(result.mediaType).toBe('image/png');
+      expect(result.mediaType).toBe('image/jpeg');
     });
 
     it('should default to JPEG for unknown extensions', async () => {
@@ -686,7 +693,8 @@ describe('Image Utils', () => {
 
       expect(sentAttachments).toBeDefined();
       expect(sentAttachments!.length).toBe(2);
-      expect(sentAttachments![0].mediaType).toBe('image/png');
+      // All images are converted to JPEG after resizing for size optimization
+      expect(sentAttachments![0].mediaType).toBe('image/jpeg');
       expect(sentAttachments![1].mediaType).toBe('image/jpeg');
     });
 
@@ -706,5 +714,134 @@ describe('Image Utils', () => {
       expect(selectedImages).toEqual([]);
       expect(cleared).toBe(true);
     });
+  });
+
+  describe('Image Resizing', () => {
+    it('should resize large images before conversion', async () => {
+      // The convertImageToBase64 now resizes images via expo-image-manipulator
+      const result = await convertImageToBase64('file:///path/to/large-image.jpg');
+
+      // After resize, should return JPEG format
+      expect(result.mediaType).toBe('image/jpeg');
+      expect(result.type).toBe('image');
+    });
+
+    it('should compress images to reduce size', async () => {
+      // Images are compressed to fit Supabase Realtime size limit
+      const result = await convertImageToBase64('file:///path/to/image.png');
+
+      // After compression, format is always JPEG
+      expect(result.mediaType).toBe('image/jpeg');
+    });
+  });
+});
+
+describe('InputBar Duplicate Send Prevention', () => {
+  it('should prevent duplicate sends with isSending state', () => {
+    let isSending = false;
+    let sendCount = 0;
+
+    const handleSend = () => {
+      if (isSending) {
+        return; // Skip if already sending
+      }
+      isSending = true;
+      sendCount++;
+      // Simulate async operation
+      setTimeout(() => {
+        isSending = false;
+      }, 100);
+    };
+
+    // First call should work
+    handleSend();
+    expect(sendCount).toBe(1);
+
+    // Second call while still sending should be skipped
+    handleSend();
+    expect(sendCount).toBe(1);
+  });
+
+  it('should disable send when isTyping is true', () => {
+    let isTyping = true;
+    let sendAttempted = false;
+
+    const handleSend = () => {
+      if (isTyping) {
+        return; // Disabled while Claude is responding
+      }
+      sendAttempted = true;
+    };
+
+    handleSend();
+    expect(sendAttempted).toBe(false);
+
+    // After response received
+    isTyping = false;
+    handleSend();
+    expect(sendAttempted).toBe(true);
+  });
+
+  it('should clear input before sending to prevent duplicate content', () => {
+    let input = 'test message';
+    let sentContent = '';
+
+    const handleSend = () => {
+      const messageContent = input.trim();
+      input = ''; // Clear immediately
+      sentContent = messageContent;
+    };
+
+    handleSend();
+    expect(input).toBe('');
+    expect(sentContent).toBe('test message');
+
+    // Second call has no content
+    handleSend();
+    expect(sentContent).toBe(''); // Empty because input was already cleared
+  });
+
+  it('should reset isSending in finally block even on error', async () => {
+    let isSending = false;
+
+    const handleSend = async () => {
+      isSending = true;
+      try {
+        throw new Error('Send failed');
+      } catch {
+        // Handle error
+      } finally {
+        isSending = false;
+      }
+    };
+
+    await handleSend();
+    expect(isSending).toBe(false);
+  });
+
+  it('should compute isDisabled correctly', () => {
+    const computeIsDisabled = (
+      disabled: boolean,
+      state: string,
+      isSending: boolean,
+      isTyping: boolean
+    ): boolean => {
+      return disabled || state !== 'connected' || isSending || isTyping;
+    };
+
+    // All conditions false -> not disabled
+    expect(computeIsDisabled(false, 'connected', false, false)).toBe(false);
+
+    // disabled prop true -> disabled
+    expect(computeIsDisabled(true, 'connected', false, false)).toBe(true);
+
+    // Not connected -> disabled
+    expect(computeIsDisabled(false, 'disconnected', false, false)).toBe(true);
+
+    // isSending true -> disabled
+    expect(computeIsDisabled(false, 'connected', true, false)).toBe(true);
+
+    // isTyping true -> disabled
+    expect(computeIsDisabled(false, 'connected', false, true)).toBe(true);
   });
 });

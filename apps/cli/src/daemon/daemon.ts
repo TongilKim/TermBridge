@@ -127,7 +127,7 @@ export class Daemon extends EventEmitter {
 
     // Wire up input from mobile
     this.realtimeClient.on('input', async (message: RealtimeMessage) => {
-      console.log('[DEBUG] Received input from mobile:', message.type);
+      console.log('[DEBUG] Received input from mobile:', message.type, 'seq:', message.seq);
 
       // Broadcast commands on first message from mobile if not already done
       if (!this.commandsBroadcast) {
@@ -137,13 +137,14 @@ export class Daemon extends EventEmitter {
 
       // Handle mode change requests
       if (message.type === 'mode-change' && message.permissionMode) {
+        console.log('[DEBUG] Mode change request:', message.permissionMode);
         this.sdkSession.setPermissionMode(message.permissionMode);
         // Broadcast the new mode back to confirm
         if (this.realtimeClient) {
           try {
             await this.realtimeClient.broadcastMode(message.permissionMode);
           } catch (error) {
-            // Silently handle broadcast errors
+            console.log('[DEBUG] Failed to broadcast mode:', error);
           }
         }
         return;
@@ -160,9 +161,15 @@ export class Daemon extends EventEmitter {
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;
 
+      console.log('[DEBUG] Processing input - prompt length:', prompt.length, 'attachments:', attachments?.length || 0);
+
       // Send if there's text or attachments
       if (prompt.trim() || (attachments && attachments.length > 0)) {
+        console.log('[DEBUG] Sending to SDK session...');
         await this.sdkSession.sendPrompt(prompt, attachments);
+        console.log('[DEBUG] SDK session sendPrompt completed');
+      } else {
+        console.log('[DEBUG] Skipping empty input');
       }
     });
 

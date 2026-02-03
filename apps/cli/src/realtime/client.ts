@@ -23,15 +23,20 @@ export class RealtimeClient extends EventEmitter {
   }
 
   async connect(): Promise<void> {
+    console.log('[DEBUG] RealtimeClient.connect: Starting connection for session:', this.sessionId);
+
     // Subscribe to output channel (CLI broadcasts to mobile)
     const outputChannelName = REALTIME_CHANNELS.sessionOutput(this.sessionId);
+    console.log('[DEBUG] RealtimeClient.connect: Output channel:', outputChannelName);
     this.outputChannel = this.supabase.channel(outputChannelName);
 
     // Subscribe to input channel (mobile sends to CLI)
     const inputChannelName = REALTIME_CHANNELS.sessionInput(this.sessionId);
+    console.log('[DEBUG] RealtimeClient.connect: Input channel:', inputChannelName);
     this.inputChannel = this.supabase.channel(inputChannelName);
 
     this.inputChannel.on('broadcast', { event: 'input' }, (payload) => {
+      console.log('[DEBUG] RealtimeClient: Received input event');
       this.emit('input', payload.payload as RealtimeMessage);
     });
 
@@ -113,11 +118,13 @@ export class RealtimeClient extends EventEmitter {
 
   async broadcast(content: string): Promise<void> {
     if (!this.outputChannel) {
+      console.log('[DEBUG] RealtimeClient.broadcast: No output channel');
       throw new Error('Not connected');
     }
 
     // Skip broadcasting if realtime is not enabled
     if (!this.realtimeEnabled) {
+      console.log('[DEBUG] RealtimeClient.broadcast: Realtime not enabled, skipping');
       return;
     }
 
@@ -128,11 +135,19 @@ export class RealtimeClient extends EventEmitter {
       seq: ++this.seq,
     };
 
-    await this.outputChannel.send({
-      type: 'broadcast',
-      event: 'output',
-      payload: message,
-    });
+    console.log('[DEBUG] RealtimeClient.broadcast: Sending seq:', message.seq, 'content length:', content.length);
+
+    try {
+      await this.outputChannel.send({
+        type: 'broadcast',
+        event: 'output',
+        payload: message,
+      });
+      console.log('[DEBUG] RealtimeClient.broadcast: Sent successfully');
+    } catch (error) {
+      console.log('[DEBUG] RealtimeClient.broadcast: Send failed:', error);
+      throw error;
+    }
 
     this.emit('broadcast', message);
   }
