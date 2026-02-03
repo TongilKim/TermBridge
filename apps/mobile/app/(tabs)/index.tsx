@@ -117,37 +117,51 @@ export default function SessionsScreen() {
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       {/* Session Stats */}
-      <Pressable
-        style={[styles.statsContainer, isDark && styles.statsContainerDark]}
-        onPress={() => setOpenSwipeableId(null)}
-      >
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>
-            {sessionCounts.total}
-          </Text>
-          <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Total</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <View style={styles.statRow}>
-            <View style={[styles.statusDot, styles.statusDotOnline]} />
-            <Text style={[styles.statNumber, styles.statNumberOnline]}>
-              {sessionCounts.online}
-            </Text>
-          </View>
-          <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Online</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <View style={styles.statRow}>
-            <View style={[styles.statusDot, styles.statusDotOffline]} />
+      <View style={[styles.statsContainer, isDark && styles.statsContainerDark]}>
+        <Pressable
+          style={styles.statsContent}
+          onPress={() => setOpenSwipeableId(null)}
+        >
+          <View style={styles.statItem}>
             <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>
-              {sessionCounts.offline}
+              {sessionCounts.total}
             </Text>
+            <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Total</Text>
           </View>
-          <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Offline</Text>
-        </View>
-      </Pressable>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={styles.statRow}>
+              <View style={[styles.statusDot, styles.statusDotOnline]} />
+              <Text style={[styles.statNumber, styles.statNumberOnline]}>
+                {sessionCounts.online}
+              </Text>
+            </View>
+            <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Online</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <View style={styles.statRow}>
+              <View style={[styles.statusDot, styles.statusDotOffline]} />
+              <Text style={[styles.statNumber, isDark && styles.statNumberDark]}>
+                {sessionCounts.offline}
+              </Text>
+            </View>
+            <Text style={[styles.statLabel, isDark && styles.statLabelDark]}>Offline</Text>
+          </View>
+        </Pressable>
+        <View style={styles.statDivider} />
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={onRefresh}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color={isDark ? '#9ca3af' : '#6b7280'} />
+          ) : (
+            <Text style={[styles.refreshIcon, isDark && styles.refreshIconDark]}>↻</Text>
+          )}
+        </TouchableOpacity>
+      </View>
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
@@ -248,10 +262,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'space-around',
   },
   statsContainerDark: {
     backgroundColor: '#1f1f1f',
+  },
+  statsContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  refreshIcon: {
+    fontSize: 22,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  refreshIconDark: {
+    color: '#9ca3af',
   },
   statItem: {
     alignItems: 'center',
