@@ -1,6 +1,6 @@
 {
   "name": "@tongil_kim/termbridge",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "type": "module",
   "description": "Remote monitoring and control for Claude Code CLI",
   "author": "TongilKim",
