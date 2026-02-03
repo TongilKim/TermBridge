@@ -50,6 +50,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Wait for npm registry to propagate
+        run: sleep 30
+
       - name: Calculate SHA256
         id: sha256
         run: |

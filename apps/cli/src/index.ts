@@ -2,9 +2,16 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
 
 // Load .env from CLI package root
 config({ path: resolve(__dirname, '../.env') });
+
+// Read version from package.json
+const packageJson = JSON.parse(
+  readFileSync(resolve(__dirname, '../package.json'), 'utf-8')
+);
+const version = packageJson.version || '0.0.0';
 
 // Library exports
 export { Config, getConfig } from './utils/config.js';
@@ -29,7 +36,7 @@ const program = new Command();
 program
   .name('termbridge')
   .description('Remote control for Claude Code CLI')
-  .version('0.1.0');
+  .version(version);
 
 program.addCommand(createSetupCommand());
 program.addCommand(createStartCommand());
