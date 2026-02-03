@@ -4,8 +4,8 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 import { readFileSync } from 'fs';
 
-// Load .env from CLI package root
-config({ path: resolve(__dirname, '../.env') });
+// Load .env from CLI package root (quiet mode to suppress dotenvx tips)
+config({ path: resolve(__dirname, '../.env'), quiet: true });
 
 // Read version from package.json
 const packageJson = JSON.parse(
