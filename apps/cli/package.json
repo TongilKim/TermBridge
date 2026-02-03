@@ -1,15 +1,37 @@
 {
-  "name": "@termbridge/cli",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@tongil_kim/termbridge",
+  "version": "0.1.2",
+  "description": "Remote monitoring and control for Claude Code CLI",
+  "author": "TongilKim",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TongilKim/termbridge.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/TongilKim/termbridge#readme",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cli",
+    "remote",
+    "monitoring",
+    "terminal"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
   "bin": {
-    "termbridge": "./bin/termbridge",
-    "claude-remote": "./bin/termbridge"
+    "termbridge": "./bin/termbridge"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,7 +41,6 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.23",
     "@supabase/supabase-js": "^2.39.0",
-    "@termbridge/shared": "workspace:*",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
     "conf": "^12.0.0",
@@ -29,6 +50,8 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/ws": "^8.18.1",
+    "termbridge-shared": "workspace:*",
+    "tsup": "^8.5.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0"
   }

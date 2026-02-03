@@ -1,7 +1,21 @@
 {
-  "name": "@termbridge/shared",
+  "name": "termbridge-shared",
   "version": "0.1.0",
-  "private": true,
+  "description": "Shared types and utilities for TermBridge",
+  "author": "tongil",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TongilKim/termbridge.git",
+    "directory": "packages/shared"
+  },
+  "keywords": ["termbridge", "claude", "cli", "remote"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

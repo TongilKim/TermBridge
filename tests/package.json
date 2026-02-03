@@ -7,7 +7,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "@termbridge/shared": "workspace:*",
+    "termbridge-shared": "workspace:*",
     "vitest": "^1.0.0"
   }
 }

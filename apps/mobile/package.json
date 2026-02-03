@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "@termbridge/shared": "workspace:*",
+    "termbridge-shared": "workspace:*",
     "@testing-library/react-native": "^12.4.0",
     "@types/react": "~19.1.17",
     "typescript": "^5.3.0",
