@@ -44,8 +44,8 @@ describe('SdkSession', () => {
       expect(permissionModeHandler).toHaveBeenCalledWith('bypassPermissions');
     });
 
-    it('should have default permission mode of bypassPermissions', () => {
-      expect(sdkSession.getPermissionMode()).toBe('bypassPermissions');
+    it('should have default permission mode of default (Ask before edits)', () => {
+      expect(sdkSession.getPermissionMode()).toBe('default');
     });
 
     it('should allow setting permission mode', () => {

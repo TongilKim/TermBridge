@@ -24,7 +24,7 @@ export class SdkSession extends EventEmitter {
   constructor(options: SdkSessionOptions) {
     super();
     this.options = options;
-    this.currentPermissionMode = options.permissionMode || 'bypassPermissions';
+    this.currentPermissionMode = options.permissionMode || 'default';
   }
 
   setPermissionMode(mode: PermissionMode): void {
