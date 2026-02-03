@@ -35,6 +35,12 @@ describe('CLI Commands', () => {
       expect(nameOption).toBeDefined();
     });
 
+    it('should have prevent-sleep option', () => {
+      const cmd = createStartCommand();
+      const preventSleepOption = cmd.options.find((opt) => opt.long === '--prevent-sleep');
+      expect(preventSleepOption).toBeDefined();
+    });
+
     it('should have description', () => {
       const cmd = createStartCommand();
       expect(cmd.description()).toBe('Start a Claude Code session');

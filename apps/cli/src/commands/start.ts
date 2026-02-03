@@ -2,11 +2,19 @@ import { Command } from 'commander';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import * as readline from 'readline';
-import { spawn, execSync } from 'child_process';
 import { Daemon } from '../daemon/daemon.js';
 import { Config } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
 import { Spinner } from '../utils/spinner.js';
+import {
+  promptYesNo,
+  enableSleepPrevention,
+  disableSleepPrevention,
+  startCaffeinate,
+  stopCaffeinate,
+  isMacOS,
+  type SleepPreventionState,
+} from '../utils/sleep-prevention.js';
 
 // Polyfill WebSocket for Node.js (Supabase Realtime needs this)
 if (typeof globalThis.WebSocket === 'undefined') {
@@ -20,37 +28,6 @@ export interface StartOptions {
   preventSleep?: boolean;
 }
 
-async function promptYesNo(question: string): Promise<boolean> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
-    });
-  });
-}
-
-function enableSleepPrevention(): boolean {
-  try {
-    execSync('sudo pmset -a disablesleep 1', { stdio: 'inherit' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function disableSleepPrevention(): void {
-  try {
-    execSync('sudo pmset -a disablesleep 0', { stdio: 'inherit' });
-  } catch {
-    // Ignore errors on cleanup
-  }
-}
-
 export function createStartCommand(): Command {
   const command = new Command('start');
 
@@ -60,7 +37,6 @@ export function createStartCommand(): Command {
     .option('-n, --name <name>', 'Machine name')
     .option('--prevent-sleep', 'Auto-enable sleep prevention (skip prompt)')
     .action(async (options: StartOptions) => {
-      let pmsetEnabled = false;
       const config = new Config();
       const logger = new Logger();
       const spinner = new Spinner('Starting TermBridge...');
@@ -115,10 +91,12 @@ export function createStartCommand(): Command {
         }
 
         // Handle sleep prevention (macOS only)
-        let caffeinateProcess: ReturnType<typeof spawn> | null = null;
-        let sleepPreventionEnabled = false;
+        const sleepState: SleepPreventionState = {
+          caffeinateProcess: null,
+          pmsetEnabled: false,
+        };
 
-        if (process.platform === 'darwin') {
+        if (isMacOS()) {
           spinner.stop();
 
           // Auto-enable if --prevent-sleep flag is used, otherwise ask
@@ -126,7 +104,6 @@ export function createStartCommand(): Command {
             await promptYesNo('Prevent sleep when lid is closed? (keeps termbridge running) [y/N]: ');
 
           if (enableSleep) {
-            sleepPreventionEnabled = true;
             logger.info('');
             logger.info('Enabling sleep prevention...');
             if (!options.preventSleep) {
@@ -134,20 +111,17 @@ export function createStartCommand(): Command {
               logger.info('');
             }
 
-            pmsetEnabled = enableSleepPrevention();
-            if (pmsetEnabled) {
+            sleepState.pmsetEnabled = enableSleepPrevention();
+            if (sleepState.pmsetEnabled) {
               logger.info('✓ Lid-closed mode enabled');
             } else {
               logger.warn('Failed to enable lid-closed mode. Using basic mode.');
             }
 
             // Start caffeinate to prevent idle sleep
-            caffeinateProcess = spawn('caffeinate', ['-i', '-s'], {
-              stdio: 'ignore',
-              detached: false,
-            });
+            sleepState.caffeinateProcess = startCaffeinate();
 
-            caffeinateProcess.on('error', () => {
+            sleepState.caffeinateProcess.on('error', () => {
               logger.warn('Failed to start caffeinate');
             });
 
@@ -183,8 +157,8 @@ export function createStartCommand(): Command {
           } else {
             logger.warn('  Mobile sync: Disabled (check Supabase Realtime settings)');
           }
-          if (sleepPreventionEnabled) {
-            logger.info(`  Sleep prevention: ${pmsetEnabled ? 'Lid-closed mode' : 'Basic mode'}`);
+          if (sleepState.caffeinateProcess) {
+            logger.info(`  Sleep prevention: ${sleepState.pmsetEnabled ? 'Lid-closed mode' : 'Basic mode'}`);
           }
           logger.info('');
           logger.info('Type your prompts below or send from mobile app.');
@@ -207,10 +181,8 @@ export function createStartCommand(): Command {
 
         // Handle process signals
         const cleanup = async () => {
-          if (caffeinateProcess) {
-            caffeinateProcess.kill();
-          }
-          if (pmsetEnabled) {
+          stopCaffeinate(sleepState.caffeinateProcess);
+          if (sleepState.pmsetEnabled) {
             console.log('Restoring sleep settings...');
             disableSleepPrevention();
           }
