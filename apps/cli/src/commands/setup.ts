@@ -34,9 +34,8 @@ export function createSetupCommand(): Command {
         logger.info('');
         logger.info('To find your credentials:');
         logger.info('  1. Go to your Supabase project dashboard');
-        logger.info('  2. Click "Project Settings" (gear icon)');
-        logger.info('  3. Click "API" in the sidebar');
-        logger.info('  4. Copy "Project URL" and "anon public" key');
+        logger.info('  2. Settings > General > Copy "Project URL"');
+        logger.info('  3. Settings > API Keys > Copy "anon public" key');
         logger.info('');
 
         const url = await prompt('Supabase Project URL (e.g., https://xxxx.supabase.co): ');
