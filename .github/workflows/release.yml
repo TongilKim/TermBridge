@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build shared package
+        run: pnpm --filter termbridge-shared build
+
       - name: Run tests
         run: pnpm --filter @tongil_kim/termbridge test
 
