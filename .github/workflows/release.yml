@@ -52,7 +52,7 @@ jobs:
 
       - name: Update package version
         working-directory: apps/cli
-        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
         working-directory: apps/cli
