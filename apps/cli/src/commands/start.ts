@@ -182,6 +182,8 @@ export function createStartCommand(): Command {
         });
 
         // Handle process signals
+        let isShuttingDown = false;
+
         const cleanup = async () => {
           stopCaffeinate(sleepState.caffeinateProcess);
           if (sleepState.pmsetEnabled) {
@@ -190,17 +192,29 @@ export function createStartCommand(): Command {
           }
         };
 
-        process.on('SIGINT', async () => {
-          console.log('\nShutting down...');
-          await daemon.stop();
-          await cleanup();
+        const gracefulShutdown = async (signal: string) => {
+          if (isShuttingDown) {
+            console.log('\nForce exiting...');
+            process.exit(1);
+          }
+          isShuttingDown = true;
+          console.log(`\n[${signal}] Shutting down gracefully...`);
+          try {
+            await daemon.stop();
+            console.log('[Cleanup] Session ended in database');
+            await cleanup();
+          } catch (error) {
+            console.error('[Cleanup] Error during shutdown:', error);
+          }
           process.exit(0);
+        };
+
+        process.on('SIGINT', () => {
+          gracefulShutdown('SIGINT').catch(console.error);
         });
 
-        process.on('SIGTERM', async () => {
-          await daemon.stop();
-          await cleanup();
-          process.exit(0);
+        process.on('SIGTERM', () => {
+          gracefulShutdown('SIGTERM').catch(console.error);
         });
 
         await daemon.start();
