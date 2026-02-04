@@ -26,6 +26,9 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   openSwipeableId: null,
 
   fetchSessions: async () => {
+    // Prevent duplicate fetches
+    if (get().isLoading) return;
+
     try {
       set({ isLoading: true, error: null });
 
