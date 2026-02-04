@@ -205,9 +205,15 @@ export class Daemon extends EventEmitter {
         return;
       }
 
-      // Handle models request
+      // Handle models request - send both available models and current model
       if (message.type === 'models-request') {
         await this.broadcastModels();
+        // Also broadcast the current model so UI shows the correct selection
+        try {
+          await this.realtimeClient?.broadcastModel(this.sdkSession.getModel());
+        } catch {
+          // Silently handle broadcast errors
+        }
         return;
       }
 
