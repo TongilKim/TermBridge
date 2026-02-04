@@ -541,24 +541,36 @@ describe('Store Logic', () => {
       expect(sentMessage!.type).toBe('commands-request');
     });
 
-    it('should reset model state when connecting to a new session', () => {
-      // Simulate having model state from a previous session
+    it('should reset all session-specific state when connecting to a new session', () => {
+      // Simulate having state from a previous session
       let model: string | null = 'opus';
       let availableModels: any[] = [{ value: 'opus', displayName: 'Opus' }];
       let isModelChanging = true;
+      let isTyping = true;
+      let permissionMode: string | null = 'bypassPermissions';
+      let commands: any[] = [{ name: 'commit' }];
+      let messages: any[] = [{ type: 'output', content: 'test' }];
 
-      // The connect action should reset model-related state
-      const resetModelState = () => {
+      // The connect action should reset ALL session-specific state
+      const resetSessionState = () => {
         model = null;
         availableModels = [];
         isModelChanging = false;
+        isTyping = false;
+        permissionMode = null;
+        commands = [];
+        messages = [];
       };
 
-      resetModelState();
+      resetSessionState();
 
       expect(model).toBeNull();
       expect(availableModels).toEqual([]);
       expect(isModelChanging).toBe(false);
+      expect(isTyping).toBe(false);
+      expect(permissionMode).toBeNull();
+      expect(commands).toEqual([]);
+      expect(messages).toEqual([]);
     });
 
     it('should request models after connecting', () => {
