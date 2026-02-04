@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Pressable,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSessionStore } from '../../src/stores/sessionStore';
 import { SessionCard } from '../../src/components/SessionCard';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -31,9 +32,12 @@ export default function SessionsScreen() {
   const { sessions, isLoading, fetchSessions, refreshSessions, setOpenSwipeableId } =
     useSessionStore();
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
+  // Refresh sessions whenever the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchSessions();
+    }, [])
+  );
 
   const onRefresh = useCallback(() => {
     refreshSessions();
