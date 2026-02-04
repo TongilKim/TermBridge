@@ -262,10 +262,9 @@ export class Daemon extends EventEmitter {
       await this.sessionManager.endSession(this.session.id);
     }
 
-    // Update machine status
-    if (this.machine) {
-      await this.machineManager.updateMachineStatus(this.machine.id, 'offline');
-    }
+    // Note: We don't set machine status to 'offline' here because other
+    // sessions may still be running on the same machine. The machine
+    // status is set to 'online' when any session starts.
 
     // Disconnect realtime
     if (this.realtimeClient) {

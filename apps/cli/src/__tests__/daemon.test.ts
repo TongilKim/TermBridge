@@ -201,7 +201,7 @@ describe('Daemon', () => {
     expect(mockSupabase.from).toHaveBeenCalledWith('sessions');
   });
 
-  it('should update machine status to offline on stop', async () => {
+  it('should not update machine status on stop (other sessions may be running)', async () => {
     daemon = new Daemon({
       supabase: mockSupabase as SupabaseClient,
       userId: 'user-456',
@@ -209,10 +209,18 @@ describe('Daemon', () => {
     });
 
     await daemon.start();
+
+    // Clear mock calls from start
+    vi.clearAllMocks();
+
     await daemon.stop();
 
-    // Verify machine update was called
-    expect(mockSupabase.from).toHaveBeenCalledWith('machines');
+    // Verify machine update was NOT called for 'offline' status
+    // (only session should be ended, machine status should not change)
+    const machineCalls = (mockSupabase.from as any).mock.calls.filter(
+      (call: any[]) => call[0] === 'machines'
+    );
+    expect(machineCalls.length).toBe(0);
   });
 
   it('should emit stopped event on stop', async () => {
