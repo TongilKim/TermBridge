@@ -184,6 +184,23 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   },
 
   disconnect: async () => {
+    // Notify CLI that mobile is disconnecting
+    if (inputChannel && get().state === 'connected') {
+      try {
+        await inputChannel.send({
+          type: 'broadcast',
+          event: 'input',
+          payload: {
+            type: 'mobile-disconnect',
+            timestamp: Date.now(),
+            seq: ++seq,
+          },
+        });
+      } catch {
+        // Ignore errors when sending disconnect notification
+      }
+    }
+
     if (outputChannel) {
       await supabase.removeChannel(outputChannel);
       outputChannel = null;

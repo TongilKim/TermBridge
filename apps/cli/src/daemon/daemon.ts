@@ -217,6 +217,14 @@ export class Daemon extends EventEmitter {
         return;
       }
 
+      // Handle mobile disconnect notification
+      if (message.type === 'mobile-disconnect') {
+        if (this.options.hybrid !== false) {
+          process.stdout.write('\n[TermBridge] Mobile client disconnected.\n> ');
+        }
+        return;
+      }
+
       // Remove trailing newline/carriage return for SDK
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;

@@ -30,7 +30,8 @@ export type RealtimeMessageType =
   | 'model'
   | 'model-change'
   | 'models'
-  | 'models-request';
+  | 'models-request'
+  | 'mobile-disconnect';
 
 export interface RealtimeMessage {
   type: RealtimeMessageType;
