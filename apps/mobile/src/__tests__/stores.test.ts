@@ -591,6 +591,67 @@ describe('Store Logic', () => {
       expect(sentMessages.length).toBe(1);
       expect(sentMessages[0].type).toBe('models-request');
     });
+
+    it('should only deduplicate messages within the same type', () => {
+      // This tests that input seq=1 and output seq=1 are NOT considered duplicates
+      // because they have different types (separate counters for mobile and CLI)
+      let messages: RealtimeMessage[] = [];
+
+      const isDuplicate = (msg: RealtimeMessage): boolean => {
+        return messages.some(
+          (m) => m.seq === msg.seq && m.type === msg.type
+        );
+      };
+
+      const addMessage = (msg: RealtimeMessage) => {
+        if (!isDuplicate(msg)) {
+          messages.push(msg);
+        }
+      };
+
+      // User sends input with seq=1
+      addMessage({ type: 'input', content: 'Hello', timestamp: 1000, seq: 1 });
+      expect(messages.length).toBe(1);
+
+      // CLI responds with output that also has seq=1 (different counter)
+      // This should NOT be considered a duplicate
+      addMessage({ type: 'output', content: 'Hi there', timestamp: 1001, seq: 1 });
+      expect(messages.length).toBe(2);
+
+      // Actual duplicate (same type and seq) should be skipped
+      addMessage({ type: 'output', content: 'Hi there', timestamp: 1001, seq: 1 });
+      expect(messages.length).toBe(2); // Still 2, duplicate skipped
+    });
+
+    it('should not skip messages when seq collides across different types', () => {
+      // Simulates the bug where user's 3rd message was lost because
+      // CLI's output had the same seq number
+      let messages: RealtimeMessage[] = [];
+
+      const isDuplicate = (msg: RealtimeMessage): boolean => {
+        return messages.some(
+          (m) => m.seq === msg.seq && m.type === msg.type
+        );
+      };
+
+      const addMessage = (msg: RealtimeMessage) => {
+        if (!isDuplicate(msg)) {
+          messages.push(msg);
+        }
+      };
+
+      // Simulate conversation flow
+      addMessage({ type: 'input', content: 'Q1', timestamp: 1000, seq: 1 });
+      addMessage({ type: 'output', content: 'A1', timestamp: 1001, seq: 1 });
+      addMessage({ type: 'input', content: 'Q2', timestamp: 2000, seq: 2 });
+      addMessage({ type: 'output', content: 'A2', timestamp: 2001, seq: 2 });
+      addMessage({ type: 'input', content: 'Q3', timestamp: 3000, seq: 3 });
+      addMessage({ type: 'output', content: 'A3', timestamp: 3001, seq: 3 });
+
+      expect(messages.length).toBe(6);
+      expect(messages.filter(m => m.type === 'input').length).toBe(3);
+      expect(messages.filter(m => m.type === 'output').length).toBe(3);
+    });
   });
 });
 
@@ -880,6 +941,140 @@ describe('Image Utils', () => {
       // After compression, format is always JPEG
       expect(result.mediaType).toBe('image/jpeg');
     });
+  });
+});
+
+describe('Terminal Message Grouping', () => {
+  interface GroupedMessage {
+    type: 'input' | 'output' | 'system';
+    content: string;
+    timestamp: number;
+  }
+
+  // Mimics the grouping logic in Terminal.tsx
+  const groupMessages = (messages: RealtimeMessage[]): GroupedMessage[] => {
+    const groups: GroupedMessage[] = [];
+    let currentGroup: GroupedMessage | null = null;
+
+    // Sort by timestamp (NOT seq) to ensure correct chronological order
+    const sortedMessages = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+    for (const msg of sortedMessages) {
+      const msgType = msg.type === 'input' ? 'input' :
+                      msg.type === 'output' ? 'output' : 'system';
+
+      if (currentGroup && currentGroup.type === msgType) {
+        currentGroup.content += msg.content || '';
+      } else {
+        if (currentGroup) {
+          groups.push(currentGroup);
+        }
+        currentGroup = {
+          type: msgType,
+          content: msg.content || '',
+          timestamp: msg.timestamp,
+        };
+      }
+    }
+
+    if (currentGroup) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  };
+
+  it('should sort messages by timestamp to maintain correct order', () => {
+    // Messages with interleaved seq numbers but correct timestamps
+    const messages: RealtimeMessage[] = [
+      { type: 'input', content: 'Q1', timestamp: 1000, seq: 1 },
+      { type: 'output', content: 'A1', timestamp: 1500, seq: 1 },
+      { type: 'input', content: 'Q2', timestamp: 2000, seq: 2 },
+      { type: 'output', content: 'A2', timestamp: 2500, seq: 2 },
+    ];
+
+    const groups = groupMessages(messages);
+
+    expect(groups.length).toBe(4);
+    expect(groups[0].type).toBe('input');
+    expect(groups[0].content).toBe('Q1');
+    expect(groups[1].type).toBe('output');
+    expect(groups[1].content).toBe('A1');
+    expect(groups[2].type).toBe('input');
+    expect(groups[2].content).toBe('Q2');
+    expect(groups[3].type).toBe('output');
+    expect(groups[3].content).toBe('A2');
+  });
+
+  it('should NOT merge non-consecutive messages of the same type', () => {
+    // Q1 -> A1 -> Q2 -> A2 should result in 4 separate groups
+    // NOT merge Q1+Q2 or A1+A2
+    const messages: RealtimeMessage[] = [
+      { type: 'input', content: 'Q1', timestamp: 1000, seq: 1 },
+      { type: 'output', content: 'A1', timestamp: 1500, seq: 1 },
+      { type: 'input', content: 'Q2', timestamp: 2000, seq: 2 },
+      { type: 'output', content: 'A2', timestamp: 2500, seq: 2 },
+    ];
+
+    const groups = groupMessages(messages);
+
+    // Should have 4 separate groups, not merged
+    expect(groups.length).toBe(4);
+  });
+
+  it('should merge consecutive messages of the same type (streaming)', () => {
+    // Claude's response comes in chunks - these should be merged
+    const messages: RealtimeMessage[] = [
+      { type: 'input', content: 'Hello', timestamp: 1000, seq: 1 },
+      { type: 'output', content: 'Hi ', timestamp: 1500, seq: 1 },
+      { type: 'output', content: 'there! ', timestamp: 1501, seq: 2 },
+      { type: 'output', content: 'How can I help?', timestamp: 1502, seq: 3 },
+    ];
+
+    const groups = groupMessages(messages);
+
+    expect(groups.length).toBe(2);
+    expect(groups[0].type).toBe('input');
+    expect(groups[0].content).toBe('Hello');
+    expect(groups[1].type).toBe('output');
+    expect(groups[1].content).toBe('Hi there! How can I help?');
+  });
+
+  it('should handle out-of-order messages by sorting by timestamp', () => {
+    // Messages might arrive out of order, but timestamp should sort them
+    const messages: RealtimeMessage[] = [
+      { type: 'output', content: 'A1', timestamp: 1500, seq: 1 },
+      { type: 'input', content: 'Q1', timestamp: 1000, seq: 1 },
+      { type: 'input', content: 'Q2', timestamp: 2000, seq: 2 },
+      { type: 'output', content: 'A2', timestamp: 2500, seq: 2 },
+    ];
+
+    const groups = groupMessages(messages);
+
+    // Should be sorted by timestamp: Q1 -> A1 -> Q2 -> A2
+    expect(groups[0].type).toBe('input');
+    expect(groups[0].content).toBe('Q1');
+    expect(groups[1].type).toBe('output');
+    expect(groups[1].content).toBe('A1');
+  });
+
+  it('should not merge messages when sorted by seq (bug scenario)', () => {
+    // This demonstrates the bug: if sorted by seq, messages with same seq
+    // from different sources could be adjacent and incorrectly merged
+    const messages: RealtimeMessage[] = [
+      { type: 'input', content: 'Q1', timestamp: 1000, seq: 1 },
+      { type: 'output', content: 'A1', timestamp: 1500, seq: 1 },
+      { type: 'input', content: 'Q2', timestamp: 2000, seq: 2 },
+      { type: 'output', content: 'A2', timestamp: 2500, seq: 2 },
+      { type: 'input', content: 'Q3', timestamp: 3000, seq: 3 },
+      { type: 'output', content: 'A3', timestamp: 3500, seq: 3 },
+    ];
+
+    const groups = groupMessages(messages);
+
+    // With timestamp sorting, we get correct order: Q1, A1, Q2, A2, Q3, A3
+    expect(groups.length).toBe(6);
+    expect(groups.map(g => g.type)).toEqual(['input', 'output', 'input', 'output', 'input', 'output']);
   });
 });
 

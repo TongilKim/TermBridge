@@ -145,7 +145,11 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
         set((state) => {
           // Skip duplicate messages (already loaded from history)
-          const isDuplicate = state.messages.some((m) => m.seq === message.seq);
+          // Only check duplicates within the same message type to avoid
+          // mobile seq colliding with CLI seq
+          const isDuplicate = state.messages.some(
+            (m) => m.seq === message.seq && m.type === message.type
+          );
           if (isDuplicate) {
             return { isTyping: false };
           }
