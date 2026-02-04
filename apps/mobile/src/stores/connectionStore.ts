@@ -196,6 +196,8 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
             seq: ++seq,
           },
         });
+        // Small delay to ensure message is delivered before removing channels
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch {
         // Ignore errors when sending disconnect notification
       }
