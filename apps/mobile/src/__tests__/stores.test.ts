@@ -163,6 +163,102 @@ describe('Store Logic', () => {
       startFetch();
       expect(isLoading).toBe(true);
     });
+
+    it('should skip fetch if already loading (silent mode)', () => {
+      let isLoading = true;
+      let fetchCalled = false;
+
+      const fetchSessions = (silent = false) => {
+        if (isLoading) return;
+        fetchCalled = true;
+      };
+
+      fetchSessions(true);
+      expect(fetchCalled).toBe(false);
+    });
+
+    it('should delete ended sessions for a specific machine', () => {
+      let sessions = [
+        { id: '1', machine_id: 'm1', status: 'active' },
+        { id: '2', machine_id: 'm1', status: 'ended' },
+        { id: '3', machine_id: 'm1', status: 'ended' },
+        { id: '4', machine_id: 'm2', status: 'ended' },
+        { id: '5', machine_id: 'm2', status: 'active' },
+      ];
+
+      const deleteEndedSessionsForMachine = (machineId: string) => {
+        sessions = sessions.filter(
+          (session) => !(session.machine_id === machineId && session.status === 'ended')
+        );
+      };
+
+      // Delete ended sessions for machine m1
+      deleteEndedSessionsForMachine('m1');
+
+      expect(sessions.length).toBe(3);
+      // Active session for m1 should remain
+      expect(sessions.find((s) => s.id === '1')).toBeDefined();
+      // Ended sessions for m1 should be deleted
+      expect(sessions.find((s) => s.id === '2')).toBeUndefined();
+      expect(sessions.find((s) => s.id === '3')).toBeUndefined();
+      // Sessions for m2 should remain
+      expect(sessions.find((s) => s.id === '4')).toBeDefined();
+      expect(sessions.find((s) => s.id === '5')).toBeDefined();
+    });
+
+    it('should delete all ended sessions', () => {
+      let sessions = [
+        { id: '1', machine_id: 'm1', status: 'active' },
+        { id: '2', machine_id: 'm1', status: 'ended' },
+        { id: '3', machine_id: 'm2', status: 'ended' },
+        { id: '4', machine_id: 'm2', status: 'active' },
+      ];
+
+      const deleteEndedSessions = () => {
+        sessions = sessions.filter((session) => session.status !== 'ended');
+      };
+
+      deleteEndedSessions();
+
+      expect(sessions.length).toBe(2);
+      expect(sessions.every((s) => s.status === 'active')).toBe(true);
+    });
+
+    it('should not delete anything if machine has no ended sessions', () => {
+      let sessions = [
+        { id: '1', machine_id: 'm1', status: 'active' },
+        { id: '2', machine_id: 'm2', status: 'ended' },
+      ];
+
+      const deleteEndedSessionsForMachine = (machineId: string) => {
+        sessions = sessions.filter(
+          (session) => !(session.machine_id === machineId && session.status === 'ended')
+        );
+      };
+
+      // Delete ended sessions for m1 (which has none)
+      deleteEndedSessionsForMachine('m1');
+
+      expect(sessions.length).toBe(2);
+    });
+
+    it('should get ended session IDs for a specific machine', () => {
+      const sessions = [
+        { id: '1', machine_id: 'm1', status: 'active' },
+        { id: '2', machine_id: 'm1', status: 'ended' },
+        { id: '3', machine_id: 'm1', status: 'ended' },
+        { id: '4', machine_id: 'm2', status: 'ended' },
+      ];
+
+      const getEndedSessionIdsForMachine = (machineId: string): string[] => {
+        return sessions
+          .filter((s) => s.machine_id === machineId && s.status === 'ended')
+          .map((s) => s.id);
+      };
+
+      const endedIds = getEndedSessionIdsForMachine('m1');
+      expect(endedIds).toEqual(['2', '3']);
+    });
   });
 
   describe('ConnectionStore', () => {
