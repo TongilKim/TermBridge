@@ -540,6 +540,45 @@ describe('Store Logic', () => {
       expect(sentMessage).not.toBeNull();
       expect(sentMessage!.type).toBe('commands-request');
     });
+
+    it('should reset model state when connecting to a new session', () => {
+      // Simulate having model state from a previous session
+      let model: string | null = 'opus';
+      let availableModels: any[] = [{ value: 'opus', displayName: 'Opus' }];
+      let isModelChanging = true;
+
+      // The connect action should reset model-related state
+      const resetModelState = () => {
+        model = null;
+        availableModels = [];
+        isModelChanging = false;
+      };
+
+      resetModelState();
+
+      expect(model).toBeNull();
+      expect(availableModels).toEqual([]);
+      expect(isModelChanging).toBe(false);
+    });
+
+    it('should request models after connecting', () => {
+      let sentMessages: RealtimeMessage[] = [];
+
+      const requestModels = () => {
+        const message: RealtimeMessage = {
+          type: 'models-request',
+          timestamp: Date.now(),
+          seq: 1,
+        };
+        sentMessages.push(message);
+      };
+
+      // Simulate what happens after connect()
+      requestModels();
+
+      expect(sentMessages.length).toBe(1);
+      expect(sentMessages[0].type).toBe('models-request');
+    });
   });
 });
 

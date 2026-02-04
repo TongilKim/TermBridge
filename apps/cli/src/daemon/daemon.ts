@@ -123,8 +123,18 @@ export class Daemon extends EventEmitter {
       }
     });
 
-    // Wire up model changes to broadcast
+    // Wire up model changes to broadcast and persist
     this.sdkSession.on('model', async (model: string) => {
+      // Persist model to database for this session
+      if (this.session) {
+        try {
+          await this.sessionManager.updateSessionModel(this.session.id, model);
+        } catch {
+          // Silently handle persistence errors
+        }
+      }
+
+      // Broadcast to mobile
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcastModel(model);

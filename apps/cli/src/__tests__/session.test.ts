@@ -156,4 +156,37 @@ describe('SessionManager', () => {
       sessionManager.createSession('machine-456')
     ).rejects.toThrow('Failed to create session');
   });
+
+  it('should update session model', async () => {
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    mockSupabase.from = vi.fn().mockReturnValue({
+      update: updateMock,
+    });
+
+    await sessionManager.updateSessionModel('session-123', 'opus');
+
+    expect(mockSupabase.from).toHaveBeenCalledWith('sessions');
+    expect(updateMock).toHaveBeenCalledWith({ model: 'opus' });
+  });
+
+  it('should throw error on model update failure', async () => {
+    mockSupabase.from = vi.fn().mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          error: { message: 'Database error' },
+        }),
+      }),
+    });
+
+    sessionManager = new SessionManager({
+      supabase: mockSupabase as SupabaseClient,
+    });
+
+    await expect(
+      sessionManager.updateSessionModel('session-123', 'opus')
+    ).rejects.toThrow('Failed to update session model');
+  });
 });

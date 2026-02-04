@@ -10,6 +10,7 @@ export interface SdkSessionOptions {
   cwd: string;
   allowedTools?: string[];
   permissionMode?: PermissionMode;
+  model?: string;
 }
 
 interface ConversationMessage {
@@ -33,6 +34,7 @@ export class SdkSession extends EventEmitter {
     super();
     this.options = options;
     this.currentPermissionMode = options.permissionMode || 'default';
+    this.currentModel = options.model || 'default';
   }
 
   setPermissionMode(mode: PermissionMode): void {

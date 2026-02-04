@@ -540,6 +540,47 @@ describe('Daemon', () => {
       );
     });
 
+    it('should persist model to database when model changes', async () => {
+      const sessionUpdateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      });
+
+      // Track calls to sessions table with update
+      const originalFrom = mockSupabase.from;
+      mockSupabase.from = vi.fn((table) => {
+        if (table === 'sessions') {
+          return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: mockSession, error: null }),
+              }),
+            }),
+            update: sessionUpdateMock,
+          };
+        }
+        return (originalFrom as any)(table);
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sdkSession = (daemon as any).sdkSession;
+
+      // Emit model event from SDK session
+      sdkSession.emit('model', 'opus');
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify model was persisted to database
+      expect(sessionUpdateMock).toHaveBeenCalledWith({ model: 'opus' });
+    });
+
     it('should handle models-request message from mobile', async () => {
       let inputHandler: ((payload: any) => void) | null = null;
 

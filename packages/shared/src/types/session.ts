@@ -5,6 +5,7 @@ export interface Session {
   machine_id: string;
   status: SessionStatus;
   working_directory?: string;
+  model?: string;
   started_at: string;
   ended_at?: string;
 }

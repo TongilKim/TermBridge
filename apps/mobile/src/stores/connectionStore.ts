@@ -50,8 +50,8 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
   connect: async (sessionId: string) => {
     try {
-      // Clear previous session state
-      set({ state: 'connecting', sessionId, error: null, messages: [], lastSeq: 0 });
+      // Clear previous session state including model (will be set from this session's stored model)
+      set({ state: 'connecting', sessionId, error: null, messages: [], lastSeq: 0, model: null, availableModels: [], isModelChanging: false });
 
       // First check if the session is still active
       const { data: session, error: sessionError } = await supabase
@@ -155,8 +155,9 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
       set({ state: 'connected' });
 
-      // Request available commands from CLI
+      // Request available commands and models from CLI
       get().requestCommands();
+      get().requestModels();
     } catch (error) {
       set({
         state: 'disconnected',
