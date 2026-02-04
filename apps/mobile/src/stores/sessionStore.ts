@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { Session } from 'termbridge-shared';
+import { REALTIME_CHANNELS } from 'termbridge-shared';
 
 interface SessionStoreState {
   sessions: Session[];
@@ -73,6 +74,40 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   endSession: async (sessionId: string) => {
     try {
       set({ pendingSessionId: sessionId });
+
+      // Send disconnect notification to CLI via realtime
+      try {
+        const inputChannelName = REALTIME_CHANNELS.sessionInput(sessionId);
+        const tempChannel = supabase.channel(inputChannelName);
+
+        // Subscribe and send disconnect message
+        await new Promise<void>((resolve) => {
+          tempChannel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await tempChannel.send({
+                type: 'broadcast',
+                event: 'input',
+                payload: {
+                  type: 'mobile-disconnect',
+                  timestamp: Date.now(),
+                  seq: 0,
+                },
+              });
+              // Wait for message to be delivered
+              await new Promise((r) => setTimeout(r, 200));
+              resolve();
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              resolve(); // Continue even if channel fails
+            }
+          });
+          // Timeout after 2 seconds
+          setTimeout(resolve, 2000);
+        });
+
+        await supabase.removeChannel(tempChannel);
+      } catch {
+        // Ignore realtime errors - still proceed with database update
+      }
 
       const { error } = await supabase
         .from('sessions')

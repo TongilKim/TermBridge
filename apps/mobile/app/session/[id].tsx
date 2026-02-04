@@ -27,16 +27,10 @@ export default function SessionScreen() {
       connect(id);
     }
 
-    // Cleanup on unmount (fallback if handleBack isn't called)
     return () => {
       disconnect();
     };
   }, [id]);
-
-  const handleBack = async () => {
-    await disconnect();
-    router.back();
-  };
 
   // Request available models when connected
   useEffect(() => {
@@ -54,7 +48,7 @@ export default function SessionScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {/* Custom Header */}
       <View style={[styles.header, isDark && styles.headerDark, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={[styles.backText, isDark && styles.backTextDark]}>‹ Back</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Session</Text>
