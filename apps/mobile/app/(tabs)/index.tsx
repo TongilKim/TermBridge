@@ -33,10 +33,10 @@ export default function SessionsScreen() {
   const { sessions, isLoading, fetchSessions, refreshSessions, setOpenSwipeableId } =
     useSessionStore();
 
-  // Refresh sessions whenever the screen gains focus
+  // Refresh sessions silently whenever the screen gains focus
   useFocusEffect(
     useCallback(() => {
-      fetchSessions();
+      fetchSessions(true);
     }, [])
   );
 

@@ -10,7 +10,7 @@ interface SessionStoreState {
   openSwipeableId: string | null; // Currently open swipeable session
 
   // Actions
-  fetchSessions: () => Promise<void>;
+  fetchSessions: (silent?: boolean) => Promise<void>;
   refreshSessions: () => Promise<void>;
   endSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -25,12 +25,14 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   pendingSessionId: null,
   openSwipeableId: null,
 
-  fetchSessions: async () => {
+  fetchSessions: async (silent = false) => {
     // Prevent duplicate fetches
     if (get().isLoading) return;
 
     try {
-      set({ isLoading: true, error: null });
+      if (!silent) {
+        set({ isLoading: true, error: null });
+      }
 
       const { data, error } = await supabase
         .from('sessions')
