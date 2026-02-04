@@ -222,6 +222,7 @@ export class Daemon extends EventEmitter {
         if (this.options.hybrid !== false) {
           process.stdout.write('\n[TermBridge] Mobile client disconnected.\n> ');
         }
+        this.emit('mobile-disconnected');
         return;
       }
 
