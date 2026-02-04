@@ -217,6 +217,10 @@ export function createStartCommand(): Command {
           gracefulShutdown('SIGTERM').catch(console.error);
         });
 
+        daemon.on('mobile-disconnected', () => {
+          gracefulShutdown('Mobile Disconnect').catch(console.error);
+        });
+
         await daemon.start();
 
         // If not daemon mode, read local input

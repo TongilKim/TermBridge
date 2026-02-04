@@ -143,11 +143,18 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
           return;
         }
 
-        set((state) => ({
-          messages: [...state.messages, message],
-          lastSeq: message.seq,
-          isTyping: false,
-        }));
+        set((state) => {
+          // Skip duplicate messages (already loaded from history)
+          const isDuplicate = state.messages.some((m) => m.seq === message.seq);
+          if (isDuplicate) {
+            return { isTyping: false };
+          }
+          return {
+            messages: [...state.messages, message],
+            lastSeq: message.seq,
+            isTyping: false,
+          };
+        });
       });
 
       // Subscribe to input channel (for sending)

@@ -246,31 +246,50 @@ export class SdkSession extends EventEmitter {
   }
 
   async getSupportedModels(): Promise<ModelInfo[]> {
-    // Fallback models - available Claude models
-    const fallbackModels: ModelInfo[] = [
-      { value: 'default', displayName: 'Sonnet 4', description: 'Balanced performance (default)' },
+    // Core models that should always be available
+    const coreModels: ModelInfo[] = [
+      { value: 'default', displayName: 'Default (recommended)', description: 'Balanced performance (default)' },
       { value: 'opus', displayName: 'Opus 4', description: 'Most capable, highest quality' },
-      { value: 'haiku', displayName: 'Haiku 3.5', description: 'Fast and efficient' },
+      { value: 'haiku', displayName: 'Haiku', description: 'Fast and efficient' },
     ];
 
     if (!this.currentQuery) {
-      return fallbackModels;
+      return coreModels;
     }
 
     try {
-      const models = await this.currentQuery.supportedModels();
-      if (models && models.length > 0) {
-        return models.map((m) => ({
+      const sdkModels = await this.currentQuery.supportedModels();
+      if (sdkModels && sdkModels.length > 0) {
+        // Map SDK models
+        const mappedModels = sdkModels.map((m) => ({
           value: m.value || m.name || '',
           displayName: m.displayName || m.name || '',
           description: m.description || '',
         }));
+
+        // Ensure core models are included (they might be missing from SDK response)
+        const existingValues = new Set(mappedModels.map(m => m.value));
+        for (const coreModel of coreModels) {
+          // Skip 'default' if SDK provides it or a sonnet variant
+          if (coreModel.value === 'default') {
+            const hasDefault = existingValues.has('default') ||
+              mappedModels.some(m => m.value.includes('sonnet'));
+            if (hasDefault) continue;
+          }
+          // Add core model if not present
+          if (!existingValues.has(coreModel.value) &&
+              !mappedModels.some(m => m.value.includes(coreModel.value))) {
+            mappedModels.push(coreModel);
+          }
+        }
+
+        return mappedModels;
       }
     } catch {
-      // Fall through to fallback models
+      // Fall through to core models
     }
 
-    return fallbackModels;
+    return coreModels;
   }
 
   /**

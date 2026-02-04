@@ -19,18 +19,31 @@ interface ModelPickerProps {
 }
 
 // Check if currentModel matches a model option (handles both shorthand and full identifiers)
+// Note: 'default' and 'sonnet' are effectively the same model - only highlight 'default' to avoid duplicates
 function isModelSelected(currentModel: string | null, modelValue: string): boolean {
   if (!currentModel) return false;
-  // Direct match
-  if (currentModel === modelValue) return true;
-  // Match shorthand to full identifier (SDK returns "default" for Sonnet)
-  if (modelValue === 'default' && (currentModel.includes('sonnet') || currentModel === 'sonnet')) return true;
+
+  // Direct match (but NOT for 'sonnet' - let 'default' handle all sonnet variants)
+  if (currentModel === modelValue && modelValue !== 'sonnet') return true;
+
+  // 'default' represents any sonnet variant (default, sonnet, or full sonnet identifier)
+  if (modelValue === 'default') {
+    return currentModel === 'default' ||
+           currentModel === 'sonnet' ||
+           currentModel.includes('sonnet');
+  }
+
+  // 'sonnet' as a separate option should NOT be highlighted (covered by 'default')
+  if (modelValue === 'sonnet') return false;
+
+  // Shorthand to full identifier matching
   if (modelValue === 'opus' && currentModel.includes('opus')) return true;
   if (modelValue === 'haiku' && currentModel.includes('haiku')) return true;
-  // Match full identifier to shorthand
-  if ((currentModel === 'default' || currentModel === 'sonnet') && modelValue.includes('sonnet')) return true;
+
+  // Full identifier to shorthand matching
   if (currentModel === 'opus' && modelValue.includes('opus')) return true;
   if (currentModel === 'haiku' && modelValue.includes('haiku')) return true;
+
   return false;
 }
 

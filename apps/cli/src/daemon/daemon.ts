@@ -220,7 +220,7 @@ export class Daemon extends EventEmitter {
       // Handle mobile disconnect notification
       if (message.type === 'mobile-disconnect') {
         if (this.options.hybrid !== false) {
-          process.stdout.write('\n[TermBridge] Mobile client disconnected.\n> ');
+          process.stdout.write('\n[TermBridge] Mobile client disconnected.\n');
         }
         this.emit('mobile-disconnected');
         return;
