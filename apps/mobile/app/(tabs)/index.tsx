@@ -3,6 +3,7 @@ import {
   View,
   Text,
   SectionList,
+  ScrollView,
   StyleSheet,
   useColorScheme,
   RefreshControl,
@@ -108,13 +109,23 @@ export default function SessionsScreen() {
 
   if (sessions.length === 0) {
     return (
-      <View style={[styles.container, isDark && styles.containerDark]}>
+      <ScrollView
+        style={[styles.container, isDark && styles.containerDark]}
+        contentContainerStyle={styles.emptyContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={onRefresh}
+            tintColor={isDark ? '#ffffff' : '#000000'}
+          />
+        }
+      >
         <EmptyState
           title="No Sessions"
-          message="Start a Claude Code session on your computer using 'termbridge start' to see it here."
+          message="Start a Claude Code session on your computer using 'termbridge start' to see it here. Pull down to refresh."
           icon="💻"
         />
-      </View>
+      </ScrollView>
     );
   }
 
@@ -237,6 +248,10 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: '#0a0a0a',
+  },
+  emptyContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   loading: {
     flex: 1,
