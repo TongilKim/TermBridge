@@ -96,7 +96,12 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
           seq: msg.seq,
         }));
         const lastSeq = historicalMessages[historicalMessages.length - 1].seq;
+        // Initialize seq counter to continue from where historical messages left off
+        seq = lastSeq;
         set({ messages, lastSeq });
+      } else {
+        // Reset seq counter for new session with no history
+        seq = 0;
       }
 
       // Clean up existing channels

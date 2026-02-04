@@ -96,7 +96,10 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
     const groups: GroupedMessage[] = [];
     let currentGroup: GroupedMessage | null = null;
 
-    for (const msg of messages) {
+    // Sort messages by seq to ensure correct order
+    const sortedMessages = [...messages].sort((a, b) => (a.seq || 0) - (b.seq || 0));
+
+    for (const msg of sortedMessages) {
       const msgType = msg.type === 'input' ? 'input' :
                       msg.type === 'output' ? 'output' : 'system';
 
