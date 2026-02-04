@@ -12,6 +12,11 @@ export interface SdkSessionOptions {
   permissionMode?: PermissionMode;
 }
 
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export class SdkSession extends EventEmitter {
   private options: SdkSessionOptions;
   private sessionId: string | null = null;
@@ -20,7 +25,9 @@ export class SdkSession extends EventEmitter {
   private currentPermissionMode: PermissionMode;
   private currentQuery: Query | null = null;
   private cachedCommands: SlashCommand[] | null = null;
-  private currentModel: string | null = null;
+  private currentModel: string = 'default';
+  private conversationHistory: ConversationMessage[] = [];
+  private pendingContextTransfer: boolean = false;
 
   constructor(options: SdkSessionOptions) {
     super();
@@ -37,34 +44,6 @@ export class SdkSession extends EventEmitter {
     return this.currentPermissionMode;
   }
 
-  getModel(): string | null {
-    return this.currentModel;
-  }
-
-  async setModel(model: string): Promise<void> {
-    if (this.currentQuery) {
-      await this.currentQuery.setModel(model);
-      this.currentModel = model;
-      this.emit('model', model);
-    }
-  }
-
-  async getSupportedModels(): Promise<ModelInfo[]> {
-    if (this.currentQuery) {
-      try {
-        const models = await this.currentQuery.supportedModels();
-        return models.map((m) => ({
-          value: m.value,
-          displayName: m.displayName,
-          description: m.description,
-        }));
-      } catch {
-        // Ignore errors fetching models
-      }
-    }
-    return [];
-  }
-
   async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
     if (this.isProcessing) {
       this.emit('output', '\n[TermBridge] Previous request still processing...\n');
@@ -74,12 +53,19 @@ export class SdkSession extends EventEmitter {
     this.isProcessing = true;
     this.abortController = new AbortController();
 
+    // Track user message in conversation history
+    if (prompt.trim()) {
+      this.conversationHistory.push({ role: 'user', content: prompt });
+    }
+
     try {
       const queryOptions: Options = {
         allowedTools: this.options.allowedTools || ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep'],
         cwd: this.options.cwd,
         abortController: this.abortController,
         permissionMode: this.currentPermissionMode,
+        // Pass model directly - SDK should handle aliases like 'opus', 'sonnet', 'haiku'
+        model: this.currentModel,
       };
 
       // Resume session if we have one
@@ -87,14 +73,24 @@ export class SdkSession extends EventEmitter {
         queryOptions.resume = this.sessionId;
       }
 
-      // Build the prompt - either plain string or async iterable for images
-      let queryPrompt: string | AsyncIterable<{ type: 'user'; message: { role: 'user'; content: unknown }; parent_tool_use_id: null; session_id: string }>;
+      // Build the prompt text, including context if transferring to new session
+      let finalPrompt = prompt;
+      if (this.pendingContextTransfer && this.conversationHistory.length > 1) {
+        // Build context from previous conversation (excluding current message)
+        const previousHistory = this.conversationHistory.slice(0, -1);
+        const contextLines = previousHistory.map(msg =>
+          `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+        );
+        const contextPrefix = `[Previous conversation context - you switched to a new model]\n${contextLines.join('\n')}\n\n[Continue with new message]\n`;
+        finalPrompt = contextPrefix + prompt;
+        this.pendingContextTransfer = false;
+      }
 
+      // Always use streaming input mode (AsyncIterable) to enable setModel() and setPermissionMode()
+      const contentBlocks: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
+
+      // Add images if present
       if (attachments && attachments.length > 0) {
-        // Build content blocks array for multi-modal input
-        const contentBlocks: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
-
-        // Add images first (Claude processes them in order)
         for (const attachment of attachments) {
           contentBlocks.push({
             type: 'image',
@@ -105,39 +101,39 @@ export class SdkSession extends EventEmitter {
             },
           });
         }
-
-        // Add text if provided
-        if (prompt.trim()) {
-          contentBlocks.push({
-            type: 'text',
-            text: prompt,
-          });
-        }
-
-        // Create async iterable for SDKUserMessage
-        const sessionId = this.sessionId || '';
-        async function* createUserMessage() {
-          yield {
-            type: 'user' as const,
-            message: {
-              role: 'user' as const,
-              content: contentBlocks,
-            },
-            parent_tool_use_id: null,
-            session_id: sessionId,
-          };
-        }
-
-        queryPrompt = createUserMessage();
-      } else {
-        // Simple string prompt (original behavior)
-        queryPrompt = prompt;
       }
+
+      // Add text
+      if (finalPrompt.trim()) {
+        contentBlocks.push({
+          type: 'text',
+          text: finalPrompt,
+        });
+      }
+
+      // Create async iterable for SDKUserMessage (streaming input mode)
+      const sessionId = this.sessionId || '';
+      async function* createUserMessage() {
+        yield {
+          type: 'user' as const,
+          message: {
+            role: 'user' as const,
+            content: contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: finalPrompt }],
+          },
+          parent_tool_use_id: null,
+          session_id: sessionId,
+        };
+      }
+
+      const queryPrompt = createUserMessage();
 
       this.currentQuery = query({
         prompt: queryPrompt,
         options: queryOptions,
       });
+
+      // Track assistant response for this turn
+      let assistantResponse = '';
 
       for await (const message of this.currentQuery) {
         // Handle different message types based on the SDK types
@@ -149,12 +145,6 @@ export class SdkSession extends EventEmitter {
           // Emit permission mode if present
           if ('permissionMode' in message) {
             this.emit('permission-mode', message.permissionMode);
-          }
-
-          // Capture and emit model from init message
-          if ('model' in message && typeof message.model === 'string') {
-            this.currentModel = message.model;
-            this.emit('model', message.model);
           }
 
           // Capture slash commands from init message (includes plugins/skills)
@@ -181,11 +171,15 @@ export class SdkSession extends EventEmitter {
             for (const block of message.message.content) {
               if ('type' in block && block.type === 'text' && 'text' in block) {
                 this.emit('output', block.text);
+                assistantResponse += block.text;
               }
             }
           }
         } else if (message.type === 'result') {
-          // Final result - don't output result.result as it duplicates assistant messages
+          // Final result - track assistant response in history
+          if (assistantResponse.trim()) {
+            this.conversationHistory.push({ role: 'assistant', content: assistantResponse.trim() });
+          }
           this.emit('complete');
         } else if (message.type === 'tool_progress') {
           // Tool progress (tool being used)
@@ -224,6 +218,57 @@ export class SdkSession extends EventEmitter {
 
   isActive(): boolean {
     return this.isProcessing;
+  }
+
+  async setModel(model: string): Promise<void> {
+    // If model actually changed and we have an active session, prepare for context transfer
+    if (model !== this.currentModel && this.sessionId) {
+      this.sessionId = null;
+      this.pendingContextTransfer = true;
+    }
+
+    this.currentModel = model;
+    this.emit('model', model);
+  }
+
+  getModel(): string {
+    return this.currentModel;
+  }
+
+  getConversationHistory(): ConversationMessage[] {
+    return [...this.conversationHistory];
+  }
+
+  clearHistory(): void {
+    this.conversationHistory = [];
+  }
+
+  async getSupportedModels(): Promise<ModelInfo[]> {
+    // Fallback models - available Claude models
+    const fallbackModels: ModelInfo[] = [
+      { value: 'default', displayName: 'Sonnet 4', description: 'Balanced performance (default)' },
+      { value: 'opus', displayName: 'Opus 4', description: 'Most capable, highest quality' },
+      { value: 'haiku', displayName: 'Haiku 3.5', description: 'Fast and efficient' },
+    ];
+
+    if (!this.currentQuery) {
+      return fallbackModels;
+    }
+
+    try {
+      const models = await this.currentQuery.supportedModels();
+      if (models && models.length > 0) {
+        return models.map((m) => ({
+          value: m.value || m.name || '',
+          displayName: m.displayName || m.name || '',
+          description: m.description || '',
+        }));
+      }
+    } catch {
+      // Fall through to fallback models
+    }
+
+    return fallbackModels;
   }
 
   /**

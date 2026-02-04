@@ -230,7 +230,7 @@ export class RealtimeClient extends EventEmitter {
     this.emit('broadcast', message);
   }
 
-  async broadcastAvailableModels(models: ModelInfo[]): Promise<void> {
+  async broadcastModels(models: ModelInfo[]): Promise<void> {
     if (!this.outputChannel) {
       throw new Error('Not connected');
     }

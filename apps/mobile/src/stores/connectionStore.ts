@@ -17,6 +17,7 @@ interface ConnectionStoreState {
   commands: SlashCommand[];
   model: string | null;
   availableModels: ModelInfo[];
+  isModelChanging: boolean;
 
   // Actions
   connect: (sessionId: string) => Promise<void>;
@@ -45,6 +46,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   commands: [],
   model: null,
   availableModels: [],
+  isModelChanging: false,
 
   connect: async (sessionId: string) => {
     try {
@@ -114,7 +116,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
         // Handle model messages separately
         if (message.type === 'model' && message.model) {
-          set({ model: message.model });
+          set({ model: message.model, isModelChanging: false });
           return;
         }
 
@@ -272,6 +274,9 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       set({ error: 'Not connected' });
       return;
     }
+
+    // Set loading state
+    set({ isModelChanging: true });
 
     const message: RealtimeMessage = {
       type: 'model-change',

@@ -505,6 +505,57 @@ describe('RealtimeClient', () => {
     });
   });
 
+  describe('broadcastModel', () => {
+    it('should send message with type model', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastModel('opus');
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'model',
+            model: 'opus',
+          }),
+        })
+      );
+    });
+  });
+
+  describe('broadcastModels', () => {
+    it('should send message with type models', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      const models = [
+        { value: 'sonnet', displayName: 'Claude Sonnet', description: 'Balanced' },
+        { value: 'opus', displayName: 'Claude Opus', description: 'Most capable' },
+      ];
+
+      await client.connect();
+      await client.broadcastModels(models);
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'models',
+            availableModels: models,
+          }),
+        })
+      );
+    });
+  });
+
   it('should persist messages but not send via realtime when realtime is disabled', async () => {
     // Create channel that returns CHANNEL_ERROR (realtime disabled)
     const errorOutputChannel = {

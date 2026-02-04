@@ -109,8 +109,6 @@ export class Daemon extends EventEmitter {
       if (!this.sdkCommandsBroadcast && this.realtimeClient) {
         this.sdkCommandsBroadcast = true;
         await this.broadcastCommands();
-        // Also broadcast available models now that we have an active query
-        await this.broadcastAvailableModels();
       }
     });
 
@@ -164,20 +162,42 @@ export class Daemon extends EventEmitter {
         return;
       }
 
-      // Handle model change requests from mobile
+      // Handle model change requests
       if (message.type === 'model-change' && message.model) {
-        try {
-          await this.sdkSession.setModel(message.model);
-          // Model event will be emitted by sdkSession, which triggers broadcast
-        } catch {
-          // Silently handle model change errors
+        const previousModel = this.sdkSession.getModel();
+        await this.sdkSession.setModel(message.model);
+
+        // Output confirmation message if model actually changed
+        if (previousModel !== message.model) {
+          const modelNames: Record<string, string> = {
+            'default': 'Sonnet 4',
+            'sonnet': 'Sonnet 4',
+            'opus': 'Opus 4',
+            'haiku': 'Haiku 3.5',
+          };
+          const displayName = modelNames[message.model] || message.model;
+          const confirmationMsg = `\n[Model switched to ${displayName}]\n`;
+
+          // Output to local terminal
+          if (this.options.hybrid !== false) {
+            process.stdout.write(confirmationMsg);
+          }
+
+          // Broadcast to mobile
+          if (this.realtimeClient) {
+            try {
+              await this.realtimeClient.broadcast(confirmationMsg);
+            } catch {
+              // Silently handle broadcast errors
+            }
+          }
         }
         return;
       }
 
-      // Handle models list request from mobile
+      // Handle models request
       if (message.type === 'models-request') {
-        await this.broadcastAvailableModels();
+        await this.broadcastModels();
         return;
       }
 
@@ -203,6 +223,16 @@ export class Daemon extends EventEmitter {
 
     // Broadcast available commands immediately
     await this.broadcastCommands();
+
+    // Broadcast available models immediately
+    await this.broadcastModels();
+
+    // Broadcast current model
+    try {
+      await this.realtimeClient.broadcastModel(this.sdkSession.getModel());
+    } catch {
+      // Silently handle broadcast errors
+    }
 
     this.running = true;
     this.emit('started', {
@@ -274,14 +304,14 @@ export class Daemon extends EventEmitter {
     }
   }
 
-  private async broadcastAvailableModels(): Promise<void> {
+  private async broadcastModels(): Promise<void> {
     if (!this.realtimeClient) {
       return;
     }
 
     try {
       const models = await this.sdkSession.getSupportedModels();
-      await this.realtimeClient.broadcastAvailableModels(models);
+      await this.realtimeClient.broadcastModels(models);
     } catch {
       // Silently handle broadcast errors
     }

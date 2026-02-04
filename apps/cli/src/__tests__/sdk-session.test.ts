@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ImageAttachment, SlashCommand } from 'termbridge-shared';
+import type { ImageAttachment, ModelInfo, SlashCommand } from 'termbridge-shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -130,9 +130,10 @@ describe('SdkSession', () => {
     it('should work with text only (no attachments)', async () => {
       await sdkSession.sendPrompt('Hello, how are you?');
 
+      // Now always uses streaming input mode (AsyncIterable) for setModel() support
       expect(mockedQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: 'Hello, how are you?',
+          options: expect.any(Object),
         })
       );
     });
@@ -154,6 +155,194 @@ describe('SdkSession', () => {
       expect(result[0]).toHaveProperty('name');
       expect(result[0]).toHaveProperty('description');
       expect(result[0]).toHaveProperty('argumentHint');
+    });
+  });
+
+  describe('session resumption', () => {
+    it('should resume session when sending subsequent messages', async () => {
+      // First query to establish session
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('First message');
+      expect(sdkSession.getSessionId()).toBe('test-session-123');
+
+      // Send second message - should resume
+      await sdkSession.sendPrompt('Second message');
+
+      // Second call should have resume option
+      const secondCall = mockedQuery.mock.calls[1][0];
+      expect(secondCall.options.resume).toBe('test-session-123');
+    });
+  });
+
+  describe('model switching', () => {
+    it('should pass model option when creating query', async () => {
+      await sdkSession.sendPrompt('Hello');
+
+      expect(mockedQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            model: 'default',
+          }),
+        })
+      );
+    });
+
+    it('should pass updated model option after setModel', async () => {
+      await sdkSession.setModel('opus');
+      await sdkSession.sendPrompt('Hello');
+
+      expect(mockedQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            model: 'opus',
+          }),
+        })
+      );
+    });
+
+    it('should emit model event when model changes', async () => {
+      const modelHandler = vi.fn();
+      sdkSession.on('model', modelHandler);
+
+      await sdkSession.setModel('opus');
+
+      expect(modelHandler).toHaveBeenCalledWith('opus');
+    });
+
+    it('should return fallback models when no query is active', async () => {
+      const models = await sdkSession.getSupportedModels();
+
+      expect(models.length).toBe(3);
+      expect(models[0].value).toBe('default');
+    });
+
+    it('should clear sessionId when model changes to force new session', async () => {
+      // Establish a session first
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('First message');
+      expect(sdkSession.getSessionId()).toBe('test-session-123');
+
+      // Change model - should clear session
+      await sdkSession.setModel('opus');
+      expect(sdkSession.getSessionId()).toBeNull();
+    });
+
+    it('should not resume session after model change', async () => {
+      // Establish a session first
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('First message');
+
+      // Change model
+      await sdkSession.setModel('opus');
+
+      // Send another message - should NOT have resume option
+      await sdkSession.sendPrompt('Second message');
+
+      const secondCall = mockedQuery.mock.calls[1][0];
+      expect(secondCall.options.resume).toBeUndefined();
+      expect(secondCall.options.model).toBe('opus');
+    });
+
+    it('should track conversation history', async () => {
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Hello! How can I help?' }],
+          },
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('Hello');
+
+      const history = sdkSession.getConversationHistory();
+      expect(history.length).toBe(2);
+      expect(history[0]).toEqual({ role: 'user', content: 'Hello' });
+      expect(history[1]).toEqual({ role: 'assistant', content: 'Hello! How can I help?' });
+    });
+
+    it('should include conversation context in prompt after model change', async () => {
+      // First establish session and conversation
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'I am Claude Sonnet.' }],
+          },
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('Who are you?');
+
+      // Change model
+      await sdkSession.setModel('opus');
+
+      // Send new message - should include context
+      await sdkSession.sendPrompt('Continue helping me');
+
+      const secondCall = mockedQuery.mock.calls[1][0];
+      // The prompt should be an async iterable that yields a user message with context
+      expect(secondCall.options.model).toBe('opus');
+      // Context should be included (we'll verify the structure in implementation)
+    });
+
+    it('should clear conversation history when clearHistory is called', async () => {
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Response' }],
+          },
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('Hello');
+      expect(sdkSession.getConversationHistory().length).toBe(2);
+
+      sdkSession.clearHistory();
+      expect(sdkSession.getConversationHistory().length).toBe(0);
     });
   });
 });

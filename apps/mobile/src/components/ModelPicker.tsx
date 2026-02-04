@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ModelInfo } from 'termbridge-shared';
@@ -17,6 +16,22 @@ interface ModelPickerProps {
   currentModel: string | null;
   onSelect: (model: ModelInfo) => void;
   onClose: () => void;
+}
+
+// Check if currentModel matches a model option (handles both shorthand and full identifiers)
+function isModelSelected(currentModel: string | null, modelValue: string): boolean {
+  if (!currentModel) return false;
+  // Direct match
+  if (currentModel === modelValue) return true;
+  // Match shorthand to full identifier (SDK returns "default" for Sonnet)
+  if (modelValue === 'default' && (currentModel.includes('sonnet') || currentModel === 'sonnet')) return true;
+  if (modelValue === 'opus' && currentModel.includes('opus')) return true;
+  if (modelValue === 'haiku' && currentModel.includes('haiku')) return true;
+  // Match full identifier to shorthand
+  if ((currentModel === 'default' || currentModel === 'sonnet') && modelValue.includes('sonnet')) return true;
+  if (currentModel === 'opus' && modelValue.includes('opus')) return true;
+  if (currentModel === 'haiku' && modelValue.includes('haiku')) return true;
+  return false;
 }
 
 export function ModelPicker({
@@ -56,16 +71,18 @@ export function ModelPicker({
           </Text>
 
           {models.length === 0 ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={isDark ? '#9ca3af' : '#6b7280'} />
-              <Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
-                Loading models...
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
+                Models will be available after sending your first message to Claude.
+              </Text>
+              <Text style={[styles.defaultModelText, isDark && styles.defaultModelTextDark]}>
+                Default model: Sonnet 4
               </Text>
             </View>
           ) : (
             <View style={styles.optionsList}>
               {models.map((model) => {
-                const isSelected = currentModel === model.value;
+                const isSelected = isModelSelected(currentModel, model.value);
                 return (
                   <TouchableOpacity
                     key={model.value}
@@ -93,17 +110,20 @@ export function ModelPicker({
                           <Text style={styles.checkmark}>✓</Text>
                         )}
                       </View>
-                      {model.description ? (
-                        <Text
-                          style={[
-                            styles.description,
-                            isDark && styles.descriptionDark,
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {model.description}
-                        </Text>
-                      ) : null}
+                      <Text
+                        style={[
+                          styles.modelVersion,
+                          isDark && styles.modelVersionDark,
+                        ]}
+                      >
+                        {model.value === 'default'
+                          ? 'claude-sonnet-4-20250514'
+                          : model.value === 'opus'
+                          ? 'claude-opus-4-5-20250514'
+                          : model.value === 'haiku'
+                          ? 'claude-3-5-haiku-20241022'
+                          : model.value}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -163,19 +183,29 @@ const styles = StyleSheet.create({
   titleDark: {
     color: '#f9fafb',
   },
-  loadingContainer: {
-    flexDirection: 'row',
+  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 12,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
-  loadingText: {
+  emptyText: {
     fontSize: 14,
     color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  loadingTextDark: {
+  emptyTextDark: {
     color: '#9ca3af',
+  },
+  defaultModelText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  defaultModelTextDark: {
+    color: '#6b7280',
   },
   optionsList: {
     gap: 8,
@@ -217,18 +247,18 @@ const styles = StyleSheet.create({
   modelNameSelected: {
     color: '#6d28d9',
   },
+  modelVersion: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  modelVersionDark: {
+    color: '#6b7280',
+  },
   checkmark: {
     fontSize: 16,
     color: '#6d28d9',
     fontWeight: '600',
-  },
-  description: {
-    fontSize: 13,
-    color: '#6b7280',
-    lineHeight: 18,
-  },
-  descriptionDark: {
-    color: '#9ca3af',
   },
   cancelButton: {
     marginTop: 16,

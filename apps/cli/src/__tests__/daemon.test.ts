@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ImageAttachment, RealtimeMessage, SlashCommand } from 'termbridge-shared';
+import type { ImageAttachment, ModelInfo, RealtimeMessage, SlashCommand } from 'termbridge-shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -459,6 +459,129 @@ describe('Daemon', () => {
       // The sendPrompt method should exist and accept attachments
       // This is validated by TypeScript - if it compiles, the interface is correct
       expect(typeof daemon.sendPrompt).toBe('function');
+    });
+  });
+
+  describe('model handling', () => {
+    it('should handle model-change message from mobile', async () => {
+      let inputHandler: ((payload: any) => void) | null = null;
+
+      mockInputChannel.on = vi.fn((event, filter, handler) => {
+        if (event === 'broadcast' && filter.event === 'input') {
+          inputHandler = handler;
+        }
+        return mockInputChannel as RealtimeChannel;
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sdkSession = (daemon as any).sdkSession;
+      const setModelSpy = vi.spyOn(sdkSession, 'setModel').mockResolvedValue(undefined);
+
+      // Simulate receiving model-change from mobile
+      if (inputHandler) {
+        inputHandler({
+          payload: {
+            type: 'model-change',
+            model: 'opus',
+            timestamp: Date.now(),
+            seq: 1,
+          },
+        });
+      }
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(setModelSpy).toHaveBeenCalledWith('opus');
+    });
+
+    it('should broadcast model after model change', async () => {
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sdkSession = (daemon as any).sdkSession;
+      const sendSpy = mockOutputChannel.send;
+
+      // Emit model event from SDK session
+      sdkSession.emit('model', 'opus');
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'model',
+            model: 'opus',
+          }),
+        })
+      );
+    });
+
+    it('should handle models-request message from mobile', async () => {
+      let inputHandler: ((payload: any) => void) | null = null;
+
+      mockInputChannel.on = vi.fn((event, filter, handler) => {
+        if (event === 'broadcast' && filter.event === 'input') {
+          inputHandler = handler;
+        }
+        return mockInputChannel as RealtimeChannel;
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sdkSession = (daemon as any).sdkSession;
+      const mockModels: ModelInfo[] = [
+        { value: 'sonnet', displayName: 'Claude Sonnet', description: 'Balanced' },
+      ];
+      vi.spyOn(sdkSession, 'getSupportedModels').mockResolvedValue(mockModels);
+
+      const sendSpy = mockOutputChannel.send;
+
+      // Simulate receiving models-request from mobile
+      if (inputHandler) {
+        inputHandler({
+          payload: {
+            type: 'models-request',
+            timestamp: Date.now(),
+            seq: 1,
+          },
+        });
+      }
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'models',
+            availableModels: mockModels,
+          }),
+        })
+      );
     });
   });
 });
