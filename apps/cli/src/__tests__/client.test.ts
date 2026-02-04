@@ -556,6 +556,98 @@ describe('RealtimeClient', () => {
     });
   });
 
+  describe('broadcastSystem', () => {
+    it('should send message with type system', async () => {
+      const client = new RealtimeClient({
+        supabase: mockSupabase as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastSystem('[Model switched to Opus 4]');
+
+      expect(mockOutputChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'system',
+            content: '[Model switched to Opus 4]',
+          }),
+        })
+      );
+    });
+
+    it('should persist system message to database', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      const supabaseWithInsert = {
+        ...mockSupabase,
+        from: vi.fn().mockReturnValue({ insert: mockInsert }),
+      };
+
+      const client = new RealtimeClient({
+        supabase: supabaseWithInsert as unknown as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastSystem('[Model switched to Opus 4]');
+
+      expect(supabaseWithInsert.from).toHaveBeenCalledWith('messages');
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session_id: 'test-session-123',
+          type: 'system',
+          content: '[Model switched to Opus 4]',
+        })
+      );
+    });
+
+    it('should skip realtime broadcast when realtime is disabled', async () => {
+      const errorOutputChannel = {
+        subscribe: vi.fn((cb) => {
+          setTimeout(() => cb('CHANNEL_ERROR'), 0);
+          return errorOutputChannel as RealtimeChannel;
+        }),
+        send: vi.fn().mockResolvedValue({ error: null }),
+        on: vi.fn().mockReturnThis(),
+      };
+
+      const errorInputChannel = {
+        subscribe: vi.fn((cb) => {
+          setTimeout(() => cb('CHANNEL_ERROR'), 0);
+          return errorInputChannel as RealtimeChannel;
+        }),
+        send: vi.fn().mockResolvedValue({ error: null }),
+        on: vi.fn().mockReturnThis(),
+      };
+
+      const errorSupabase = {
+        channel: vi.fn((name) => {
+          if (name.includes('output')) {
+            return errorOutputChannel as RealtimeChannel;
+          }
+          return errorInputChannel as RealtimeChannel;
+        }),
+        removeChannel: vi.fn().mockResolvedValue({ error: null }),
+        from: vi.fn().mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: null }) }),
+      };
+
+      const client = new RealtimeClient({
+        supabase: errorSupabase as unknown as SupabaseClient,
+        sessionId: 'test-session-123',
+      });
+
+      await client.connect();
+      await client.broadcastSystem('System message');
+
+      // Should NOT send via realtime since it's disabled
+      expect(errorOutputChannel.send).not.toHaveBeenCalled();
+      // But should still persist to database
+      expect(errorSupabase.from).toHaveBeenCalledWith('messages');
+    });
+  });
+
   it('should persist messages but not send via realtime when realtime is disabled', async () => {
     // Create channel that returns CHANNEL_ERROR (realtime disabled)
     const errorOutputChannel = {

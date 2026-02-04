@@ -176,17 +176,17 @@ export class Daemon extends EventEmitter {
             'haiku': 'Haiku 3.5',
           };
           const displayName = modelNames[message.model] || message.model;
-          const confirmationMsg = `\n[Model switched to ${displayName}]\n`;
+          const confirmationMsg = `[Model switched to ${displayName}]`;
 
           // Output to local terminal
           if (this.options.hybrid !== false) {
-            process.stdout.write(confirmationMsg);
+            process.stdout.write(`\n${confirmationMsg}\n`);
           }
 
-          // Broadcast to mobile
+          // Broadcast to mobile as system message (appears as separate bubble)
           if (this.realtimeClient) {
             try {
-              await this.realtimeClient.broadcast(confirmationMsg);
+              await this.realtimeClient.broadcastSystem(confirmationMsg);
             } catch {
               // Silently handle broadcast errors
             }

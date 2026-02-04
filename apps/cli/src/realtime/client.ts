@@ -256,6 +256,51 @@ export class RealtimeClient extends EventEmitter {
     this.emit('broadcast', message);
   }
 
+  async broadcastSystem(content: string): Promise<void> {
+    if (!this.outputChannel) {
+      throw new Error('Not connected');
+    }
+
+    const message: RealtimeMessage = {
+      type: 'system',
+      content,
+      timestamp: Date.now(),
+      seq: ++this.seq,
+    };
+
+    // Persist message to database for history
+    try {
+      const { error } = await this.supabase.from('messages').insert({
+        session_id: this.sessionId,
+        type: message.type,
+        content: message.content,
+        seq: message.seq,
+      });
+      if (error) {
+        console.warn('[WARN] Failed to persist system message:', error.message);
+      }
+    } catch (error) {
+      console.warn('[WARN] Failed to persist system message:', error);
+    }
+
+    // Skip realtime broadcasting if not enabled
+    if (!this.realtimeEnabled) {
+      return;
+    }
+
+    try {
+      await this.outputChannel.send({
+        type: 'broadcast',
+        event: 'output',
+        payload: message,
+      });
+    } catch (error) {
+      throw error;
+    }
+
+    this.emit('broadcast', message);
+  }
+
   getSeq(): number {
     return this.seq;
   }
