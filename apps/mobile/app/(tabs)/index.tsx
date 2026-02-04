@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSessionStore } from '../../src/stores/sessionStore';
@@ -30,7 +31,7 @@ export default function SessionsScreen() {
   const isDark = colorScheme === 'dark';
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const { sessions, isLoading, fetchSessions, refreshSessions, setOpenSwipeableId } =
+  const { sessions, isLoading, fetchSessions, refreshSessions, deleteEndedSessionsForMachine, setOpenSwipeableId } =
     useSessionStore();
 
   // Refresh sessions silently whenever the screen gains focus
@@ -83,6 +84,17 @@ export default function SessionsScreen() {
     const offline = total - online;
     return { total, online, offline };
   }, [sessions]);
+
+  const onClearEndedForMachine = useCallback((machineId: string, machineName: string, count: number) => {
+    Alert.alert(
+      'Clear Ended Sessions',
+      `Delete ${count} ended session${count !== 1 ? 's' : ''} from ${machineName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteEndedSessionsForMachine(machineId) },
+      ]
+    );
+  }, [deleteEndedSessionsForMachine]);
 
   const toggleSection = (sectionId: string) => {
     // Close any open swipeable
@@ -204,18 +216,32 @@ export default function SessionsScreen() {
                 )}
               </View>
             </View>
-            <View style={styles.sectionBadges}>
-              {section.onlineCount > 0 && (
-                <View style={[styles.sectionBadge, styles.sectionBadgeOnline, isDark && styles.sectionBadgeOnlineDark]}>
-                  <Text style={[styles.sectionBadgeText, isDark && styles.sectionBadgeTextDark]}>{section.onlineCount}</Text>
-                </View>
-              )}
+            <View style={styles.sectionHeaderRight}>
+              <View style={styles.sectionBadges}>
+                {section.onlineCount > 0 && (
+                  <View style={[styles.sectionBadge, styles.sectionBadgeOnline, isDark && styles.sectionBadgeOnlineDark]}>
+                    <Text style={[styles.sectionBadgeText, isDark && styles.sectionBadgeTextDark]}>{section.onlineCount}</Text>
+                  </View>
+                )}
+                {section.offlineCount > 0 && (
+                  <View style={[styles.sectionBadge, styles.sectionBadgeOffline, isDark && styles.sectionBadgeOfflineDark]}>
+                    <Text style={[styles.sectionBadgeText, styles.sectionBadgeTextOffline, isDark && styles.sectionBadgeTextOfflineDark]}>
+                      {section.offlineCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
               {section.offlineCount > 0 && (
-                <View style={[styles.sectionBadge, styles.sectionBadgeOffline, isDark && styles.sectionBadgeOfflineDark]}>
-                  <Text style={[styles.sectionBadgeText, styles.sectionBadgeTextOffline, isDark && styles.sectionBadgeTextOfflineDark]}>
-                    {section.offlineCount}
-                  </Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.sectionClearButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onClearEndedForMachine(section.id, section.title, section.offlineCount);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.sectionClearIcon, isDark && styles.sectionClearIconDark]}>🗑</Text>
+                </TouchableOpacity>
               )}
             </View>
           </TouchableOpacity>
@@ -396,6 +422,21 @@ const styles = StyleSheet.create({
   },
   sectionHostnameDark: {
     color: '#9ca3af',
+  },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionClearButton: {
+    padding: 4,
+  },
+  sectionClearIcon: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  sectionClearIconDark: {
+    opacity: 0.8,
   },
   sectionBadges: {
     flexDirection: 'row',

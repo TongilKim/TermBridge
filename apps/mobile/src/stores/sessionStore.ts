@@ -14,6 +14,8 @@ interface SessionStoreState {
   refreshSessions: () => Promise<void>;
   endSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
+  deleteEndedSessions: () => Promise<void>;
+  deleteEndedSessionsForMachine: (machineId: string) => Promise<void>;
   clearError: () => void;
   setOpenSwipeableId: (id: string | null) => void;
 }
@@ -116,6 +118,59 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : 'Failed to delete session',
         pendingSessionId: null,
+      });
+    }
+  },
+
+  deleteEndedSessions: async () => {
+    try {
+      set({ isLoading: true });
+
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('status', 'ended');
+
+      if (error) throw error;
+
+      // Remove ended sessions from local state
+      set((state) => ({
+        sessions: state.sessions.filter((session) => session.status !== 'ended'),
+        isLoading: false,
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete ended sessions',
+        isLoading: false,
+      });
+    }
+  },
+
+  deleteEndedSessionsForMachine: async (machineId: string) => {
+    try {
+      // Get ended session IDs for this machine
+      const endedSessionIds = get()
+        .sessions.filter((s) => s.machine_id === machineId && s.status === 'ended')
+        .map((s) => s.id);
+
+      if (endedSessionIds.length === 0) return;
+
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .in('id', endedSessionIds);
+
+      if (error) throw error;
+
+      // Remove from local state
+      set((state) => ({
+        sessions: state.sessions.filter(
+          (session) => !(session.machine_id === machineId && session.status === 'ended')
+        ),
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to delete ended sessions',
       });
     }
   },
