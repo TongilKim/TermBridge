@@ -34,7 +34,12 @@ export function CommandPicker({
     if (!search.trim()) {
       return commands;
     }
-    const lowerSearch = search.toLowerCase();
+    // Strip leading "/" since command names don't include it
+    const searchTerm = search.trim().replace(/^\/+/, '');
+    if (!searchTerm) {
+      return commands;
+    }
+    const lowerSearch = searchTerm.toLowerCase();
 
     // Filter and sort: name matches first, then description matches
     return commands
