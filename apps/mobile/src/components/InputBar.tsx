@@ -53,6 +53,7 @@ export function InputBar({ disabled }: InputBarProps) {
   const {
     sendInput,
     sendModelChange,
+    sendClearRequest,
     state,
     commands,
     isTyping,
@@ -183,8 +184,8 @@ export function InputBar({ disabled }: InputBarProps) {
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               // Clear local messages
               clearMessages();
-              // Send /clear to CLI to reset Claude's session
-              await sendInput('/clear\n');
+              // Send clear request to CLI to reset Claude's session
+              await sendClearRequest();
             },
           },
         ]

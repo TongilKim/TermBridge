@@ -44,6 +44,7 @@ interface ConnectionStoreState {
   requestModels: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  sendClearRequest: () => Promise<void>;
 
   // Interactive actions
   requestInteractiveCommand: (command: InteractiveCommandType) => Promise<void>;
@@ -305,6 +306,25 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
 
   clearMessages: () => {
     set({ messages: [], lastSeq: 0 });
+  },
+
+  sendClearRequest: async () => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'clear-request',
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    await inputChannel.send({
+      type: 'broadcast',
+      event: 'input',
+      payload: message,
+    });
   },
 
   sendModeChange: async (mode: PermissionMode) => {

@@ -36,7 +36,8 @@ export type RealtimeMessageType =
   | 'interactive-request'
   | 'interactive-response'
   | 'interactive-apply'
-  | 'interactive-confirm';
+  | 'interactive-confirm'
+  | 'clear-request'; // Request to clear conversation (doesn't appear in chat)
 
 export type InteractiveCommandType =
   | 'config'

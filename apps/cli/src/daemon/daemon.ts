@@ -282,16 +282,24 @@ export class Daemon extends EventEmitter {
         return;
       }
 
+      // Handle clear request from mobile (doesn't appear in chat)
+      if (message.type === 'clear-request') {
+        this.sdkSession.clearHistory();
+        if (this.options.hybrid !== false) {
+          process.stdout.write('\n[Conversation cleared]\n> ');
+        }
+        return;
+      }
+
       // Remove trailing newline/carriage return for SDK
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;
 
       // Send if there's text or attachments
       if (prompt.trim() || (attachments && attachments.length > 0)) {
-        // Handle special commands that don't produce output
+        // Handle /clear typed in chat (legacy support)
         const trimmedPrompt = prompt.trim();
         if (trimmedPrompt === '/clear') {
-          // /clear clears conversation - send feedback to mobile
           this.sdkSession.clearHistory();
           if (this.realtimeClient) {
             try {
