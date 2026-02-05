@@ -35,11 +35,31 @@ export function CommandPicker({
       return commands;
     }
     const lowerSearch = search.toLowerCase();
-    return commands.filter(
-      (cmd) =>
-        cmd.name.toLowerCase().includes(lowerSearch) ||
-        cmd.description.toLowerCase().includes(lowerSearch)
-    );
+
+    // Filter and sort: name matches first, then description matches
+    return commands
+      .filter(
+        (cmd) =>
+          cmd.name.toLowerCase().includes(lowerSearch) ||
+          cmd.description.toLowerCase().includes(lowerSearch)
+      )
+      .sort((a, b) => {
+        const aNameMatch = a.name.toLowerCase().includes(lowerSearch);
+        const bNameMatch = b.name.toLowerCase().includes(lowerSearch);
+
+        // Name matches come first
+        if (aNameMatch && !bNameMatch) return -1;
+        if (!aNameMatch && bNameMatch) return 1;
+
+        // If both match by name, sort by how early the match appears
+        if (aNameMatch && bNameMatch) {
+          const aIndex = a.name.toLowerCase().indexOf(lowerSearch);
+          const bIndex = b.name.toLowerCase().indexOf(lowerSearch);
+          return aIndex - bIndex;
+        }
+
+        return 0;
+      });
   }, [commands, search]);
 
   const handleSelect = (command: SlashCommand) => {
