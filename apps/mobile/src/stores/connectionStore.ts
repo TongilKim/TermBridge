@@ -23,7 +23,7 @@ interface ConnectionStoreState {
   lastSeq: number;
   error: string | null;
   isTyping: boolean;
-  isCliOnline: boolean; // Tracks if CLI is online via Supabase Presence
+  isCliOnline: boolean | null; // Tracks if CLI is online via Supabase Presence (null = not yet checked)
   permissionMode: PermissionMode | null;
   commands: SlashCommand[];
   model: string | null;
@@ -66,7 +66,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   lastSeq: 0,
   error: null,
   isTyping: false,
-  isCliOnline: false,
+  isCliOnline: null, // null = not yet checked
   permissionMode: null,
   commands: [],
   model: null,
@@ -86,7 +86,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         messages: [],
         lastSeq: 0,
         isTyping: false,
-        isCliOnline: false,
+        isCliOnline: null, // Reset to unknown until presence syncs
         permissionMode: null,
         commands: [],
         model: null,

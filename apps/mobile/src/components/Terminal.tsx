@@ -151,7 +151,7 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
           </Text>
         </View>
       )}
-      {state === 'connected' && !isCliOnline && (
+      {state === 'connected' && isCliOnline === false && (
         <View style={[styles.statusBanner, styles.status_cliOffline]}>
           <Text style={styles.statusText}>CLI Offline (laptop may be sleeping)</Text>
         </View>

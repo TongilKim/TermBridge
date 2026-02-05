@@ -103,26 +103,19 @@ export class RealtimeClient extends EventEmitter {
       const presenceChannelName = REALTIME_CHANNELS.sessionPresence(this.sessionId);
       this.presenceChannel = this.supabase.channel(presenceChannelName);
 
-      await new Promise<void>((resolve) => {
-        let resolved = false;
-        this.presenceChannel!.subscribe(async (status) => {
-          if (resolved) return; // Only handle first result
+      // Set up presence sync handler before subscribing
+      this.presenceChannel.on('presence', { event: 'sync' }, () => {
+        // Presence state synced
+      });
 
-          if (status === 'SUBSCRIBED') {
-            resolved = true;
-            // Track CLI as online
-            await this.presenceChannel!.track({
-              online_at: new Date().toISOString(),
-              type: 'cli',
-            });
-            resolve();
-          } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
-            resolved = true;
-            // Presence failed, but don't block - it's not critical
-            console.warn('[WARN] Presence channel failed. CLI status tracking disabled.');
-            resolve();
-          }
-        });
+      // Subscribe and track presence - re-track on every SUBSCRIBED (handles reconnection)
+      this.presenceChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED' && this.presenceChannel) {
+          await this.presenceChannel.track({
+            type: 'cli',
+            online_at: new Date().toISOString(),
+          });
+        }
       });
     }
 

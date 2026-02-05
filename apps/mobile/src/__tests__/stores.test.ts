@@ -119,11 +119,44 @@ describe('Store Logic', () => {
         sessions: [],
         isLoading: false,
         error: null,
+        sessionOnlineStatus: {},
       };
 
       expect(initialState.sessions).toEqual([]);
       expect(initialState.isLoading).toBe(false);
       expect(initialState.error).toBeNull();
+      expect(initialState.sessionOnlineStatus).toEqual({});
+    });
+
+    it('should track session online status per session', () => {
+      let sessionOnlineStatus: Record<string, boolean> = {};
+
+      const updateOnlineStatus = (sessionId: string, isOnline: boolean) => {
+        sessionOnlineStatus = { ...sessionOnlineStatus, [sessionId]: isOnline };
+      };
+
+      updateOnlineStatus('session-1', true);
+      expect(sessionOnlineStatus['session-1']).toBe(true);
+
+      updateOnlineStatus('session-2', false);
+      expect(sessionOnlineStatus['session-2']).toBe(false);
+
+      // Update existing session
+      updateOnlineStatus('session-1', false);
+      expect(sessionOnlineStatus['session-1']).toBe(false);
+    });
+
+    it('should only subscribe to presence for active sessions', () => {
+      const sessions = [
+        { id: '1', status: 'active' },
+        { id: '2', status: 'ended' },
+        { id: '3', status: 'active' },
+      ];
+
+      const activeSessions = sessions.filter((s) => s.status === 'active');
+
+      expect(activeSessions.length).toBe(2);
+      expect(activeSessions.map((s) => s.id)).toEqual(['1', '3']);
     });
 
     it('should fetch sessions and update state', () => {
@@ -271,6 +304,7 @@ describe('Store Logic', () => {
         error: null,
         isTyping: false,
         permissionMode: null,
+        isCliOnline: null,
       };
 
       expect(initialState.state).toBe('disconnected');
@@ -278,6 +312,42 @@ describe('Store Logic', () => {
       expect(initialState.messages).toEqual([]);
       expect(initialState.lastSeq).toBe(0);
       expect(initialState.isTyping).toBe(false);
+      expect(initialState.isCliOnline).toBeNull();
+    });
+
+    it('should have isCliOnline initialized to null (unknown)', () => {
+      const initialState = {
+        isCliOnline: null as boolean | null,
+      };
+
+      expect(initialState.isCliOnline).toBeNull();
+    });
+
+    it('should update isCliOnline based on presence state', () => {
+      let isCliOnline: boolean | null = null;
+
+      // Simulate presence sync with CLI present
+      const handlePresenceSync = (presences: Array<{ type?: string }>) => {
+        isCliOnline = presences.some((p) => p.type === 'cli');
+      };
+
+      handlePresenceSync([{ type: 'cli' }]);
+      expect(isCliOnline).toBe(true);
+
+      // CLI leaves
+      handlePresenceSync([]);
+      expect(isCliOnline).toBe(false);
+    });
+
+    it('should reset isCliOnline to null when connecting to new session', () => {
+      let isCliOnline: boolean | null = true;
+
+      const resetOnConnect = () => {
+        isCliOnline = null;
+      };
+
+      resetOnConnect();
+      expect(isCliOnline).toBeNull();
     });
 
     it('should have permissionMode in state', () => {
@@ -652,6 +722,85 @@ describe('Store Logic', () => {
       expect(messages.filter(m => m.type === 'input').length).toBe(3);
       expect(messages.filter(m => m.type === 'output').length).toBe(3);
     });
+  });
+});
+
+describe('Effective Status Computation', () => {
+  type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+
+  const computeEffectiveStatus = (
+    state: ConnectionState,
+    isCliOnline: boolean | null
+  ): 'online' | 'cliOffline' | 'connecting' | 'disconnected' => {
+    if (state === 'connected' && isCliOnline === false) {
+      return 'cliOffline';
+    }
+    if (state === 'connected') {
+      return 'online';
+    }
+    if (state === 'connecting' || state === 'reconnecting') {
+      return 'connecting';
+    }
+    return 'disconnected';
+  };
+
+  it('should return "online" when connected and CLI is online', () => {
+    expect(computeEffectiveStatus('connected', true)).toBe('online');
+  });
+
+  it('should return "online" when connected and CLI status is unknown (null)', () => {
+    expect(computeEffectiveStatus('connected', null)).toBe('online');
+  });
+
+  it('should return "cliOffline" when connected but CLI is offline', () => {
+    expect(computeEffectiveStatus('connected', false)).toBe('cliOffline');
+  });
+
+  it('should return "connecting" when connecting', () => {
+    expect(computeEffectiveStatus('connecting', null)).toBe('connecting');
+  });
+
+  it('should return "connecting" when reconnecting', () => {
+    expect(computeEffectiveStatus('reconnecting', null)).toBe('connecting');
+  });
+
+  it('should return "disconnected" when disconnected', () => {
+    expect(computeEffectiveStatus('disconnected', null)).toBe('disconnected');
+  });
+});
+
+describe('InputBar Disabled State with CLI Offline', () => {
+  it('should be disabled when CLI is offline', () => {
+    const computeIsDisabled = (
+      state: string,
+      isCliOnline: boolean | null
+    ): boolean => {
+      return state !== 'connected' || isCliOnline === false;
+    };
+
+    expect(computeIsDisabled('connected', false)).toBe(true);
+  });
+
+  it('should not be disabled when CLI is online', () => {
+    const computeIsDisabled = (
+      state: string,
+      isCliOnline: boolean | null
+    ): boolean => {
+      return state !== 'connected' || isCliOnline === false;
+    };
+
+    expect(computeIsDisabled('connected', true)).toBe(false);
+  });
+
+  it('should not be disabled when CLI status is unknown (null)', () => {
+    const computeIsDisabled = (
+      state: string,
+      isCliOnline: boolean | null
+    ): boolean => {
+      return state !== 'connected' || isCliOnline === false;
+    };
+
+    expect(computeIsDisabled('connected', null)).toBe(false);
   });
 });
 

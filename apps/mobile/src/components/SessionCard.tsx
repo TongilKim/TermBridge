@@ -31,8 +31,9 @@ export function SessionCard({ session }: SessionCardProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const swipeableRef = useRef<Swipeable>(null);
-  const { endSession, deleteSession, pendingSessionId, openSwipeableId, setOpenSwipeableId } = useSessionStore();
+  const { endSession, deleteSession, pendingSessionId, openSwipeableId, setOpenSwipeableId, sessionOnlineStatus } = useSessionStore();
   const isPending = pendingSessionId === session.id;
+  const isCliOnline = sessionOnlineStatus[session.id] ?? false;
 
   // Close this swipeable if another one is opened or if cleared
   useEffect(() => {
@@ -186,14 +187,16 @@ export function SessionCard({ session }: SessionCardProps) {
           <View
             style={[
               styles.statusDot,
-              isActive && machineOnline
+              isActive && isCliOnline
                 ? styles.statusActive
-                : styles.statusInactive,
+                : isActive
+                  ? styles.statusOffline
+                  : styles.statusInactive,
             ]}
           />
         </View>
         <Text style={[styles.statusText, isDark && styles.statusTextDark]}>
-          {isActive ? (machineOnline ? 'Active' : 'Paused') : 'Ended'}
+          {isActive ? (isCliOnline ? 'Active' : 'Offline') : 'Ended'}
         </Text>
       </View>
 
@@ -285,6 +288,9 @@ const styles = StyleSheet.create({
   },
   statusActive: {
     backgroundColor: '#22c55e',
+  },
+  statusOffline: {
+    backgroundColor: '#f59e0b', // Orange for active but offline
   },
   statusInactive: {
     backgroundColor: '#9ca3af',

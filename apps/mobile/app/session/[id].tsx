@@ -20,7 +20,17 @@ export default function SessionScreen() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  const { connect, disconnect, state, requestModels } = useConnectionStore();
+  const { connect, disconnect, state, requestModels, isCliOnline } = useConnectionStore();
+
+  // Compute effective status for badge display
+  const effectiveStatus =
+    state === 'connected' && isCliOnline === false
+      ? 'cliOffline'
+      : state === 'connected'
+        ? 'online'
+        : state === 'connecting' || state === 'reconnecting'
+          ? 'connecting'
+          : 'disconnected';
 
   useEffect(() => {
     if (id) {
@@ -54,50 +64,23 @@ export default function SessionScreen() {
         <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Session</Text>
         <View style={styles.headerRight}>
           {/* Status Badge */}
-          <View
-            style={[
-              styles.statusBadge,
-              state === 'connected'
-                ? styles.statusBadgeConnected
-                : state === 'connecting' || state === 'reconnecting'
-                  ? styles.statusBadgeConnecting
-                  : styles.statusBadgeDisconnected,
-            ]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                state === 'connected'
-                  ? styles.statusDotConnected
-                  : state === 'connecting' || state === 'reconnecting'
-                    ? styles.statusDotConnecting
-                    : styles.statusDotDisconnected,
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                state === 'connected'
-                  ? styles.statusTextConnected
-                  : state === 'connecting' || state === 'reconnecting'
-                    ? styles.statusTextConnecting
-                    : styles.statusTextDisconnected,
-              ]}
-            >
-              {state === 'connected'
+          <View style={[styles.statusBadge, styles[`statusBadge_${effectiveStatus}`]]}>
+            <View style={[styles.statusDot, styles[`statusDot_${effectiveStatus}`]]} />
+            <Text style={[styles.statusText, styles[`statusText_${effectiveStatus}`]]}>
+              {effectiveStatus === 'online'
                 ? 'Online'
-                : state === 'connecting'
-                  ? 'Connecting'
-                  : state === 'reconnecting'
-                    ? 'Reconnecting'
-                    : 'Offline'}
+                : effectiveStatus === 'cliOffline'
+                  ? 'CLI Offline'
+                  : effectiveStatus === 'connecting'
+                    ? 'Connecting'
+                    : 'Disconnected'}
             </Text>
           </View>
         </View>
       </View>
       <Terminal />
       <View style={{ paddingBottom: insets.bottom }}>
-        <InputBar disabled={state !== 'connected'} />
+        <InputBar disabled={state !== 'connected' || isCliOnline === false} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -159,13 +142,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 6,
   },
-  statusBadgeConnected: {
+  statusBadge_online: {
     backgroundColor: '#dcfce7',
   },
-  statusBadgeConnecting: {
+  statusBadge_cliOffline: {
     backgroundColor: '#fef3c7',
   },
-  statusBadgeDisconnected: {
+  statusBadge_connecting: {
+    backgroundColor: '#fef3c7',
+  },
+  statusBadge_disconnected: {
     backgroundColor: '#f3f4f6',
   },
   // Status dot
@@ -174,13 +160,16 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  statusDotConnected: {
+  statusDot_online: {
     backgroundColor: '#22c55e',
   },
-  statusDotConnecting: {
+  statusDot_cliOffline: {
     backgroundColor: '#f59e0b',
   },
-  statusDotDisconnected: {
+  statusDot_connecting: {
+    backgroundColor: '#f59e0b',
+  },
+  statusDot_disconnected: {
     backgroundColor: '#9ca3af',
   },
   // Status text
@@ -188,13 +177,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  statusTextConnected: {
+  statusText_online: {
     color: '#166534',
   },
-  statusTextConnecting: {
+  statusText_cliOffline: {
     color: '#92400e',
   },
-  statusTextDisconnected: {
+  statusText_connecting: {
+    color: '#92400e',
+  },
+  statusText_disconnected: {
     color: '#6b7280',
   },
 });

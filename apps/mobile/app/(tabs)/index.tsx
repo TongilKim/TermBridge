@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -31,15 +31,24 @@ export default function SessionsScreen() {
   const isDark = colorScheme === 'dark';
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const { sessions, isLoading, fetchSessions, refreshSessions, deleteEndedSessionsForMachine, setOpenSwipeableId } =
+  const { sessions, isLoading, fetchSessions, refreshSessions, deleteEndedSessionsForMachine, setOpenSwipeableId, subscribeToPresence, unsubscribeFromPresence, sessionOnlineStatus } =
     useSessionStore();
 
-  // Refresh sessions silently whenever the screen gains focus
+  // Refresh sessions silently and subscribe to presence whenever the screen gains focus
   useFocusEffect(
     useCallback(() => {
-      fetchSessions(true);
-    }, [])
+      fetchSessions(true).then(() => {
+        subscribeToPresence();
+      });
+    }, [fetchSessions, subscribeToPresence])
   );
+
+  // Also subscribe when sessions change
+  useEffect(() => {
+    if (sessions.length > 0) {
+      subscribeToPresence();
+    }
+  }, [sessions, subscribeToPresence]);
 
   const onRefresh = useCallback(() => {
     refreshSessions();
@@ -67,7 +76,8 @@ export default function SessionsScreen() {
 
       const section = machineMap.get(machineId)!;
       section.data.push(session);
-      if (session.status === 'active') {
+      // Count as online only if active AND CLI is online via presence
+      if (session.status === 'active' && sessionOnlineStatus[session.id]) {
         section.onlineCount++;
       } else {
         section.offlineCount++;
@@ -75,15 +85,18 @@ export default function SessionsScreen() {
     });
 
     return Array.from(machineMap.values());
-  }, [sessions]);
+  }, [sessions, sessionOnlineStatus]);
 
-  // Calculate total session counts
+  // Calculate total session counts based on presence status
   const sessionCounts = useMemo(() => {
     const total = sessions.length;
-    const online = sessions.filter((s: any) => s.status === 'active').length;
+    // Count sessions where CLI is actually online (active + presence confirmed)
+    const online = sessions.filter((s: any) =>
+      s.status === 'active' && sessionOnlineStatus[s.id]
+    ).length;
     const offline = total - online;
     return { total, online, offline };
-  }, [sessions]);
+  }, [sessions, sessionOnlineStatus]);
 
   const onClearEndedForMachine = useCallback((machineId: string, machineName: string, count: number) => {
     Alert.alert(

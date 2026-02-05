@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { Session } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface SessionStoreState {
   sessions: Session[];
@@ -9,6 +10,7 @@ interface SessionStoreState {
   error: string | null;
   pendingSessionId: string | null; // Session being disconnected/deleted
   openSwipeableId: string | null; // Currently open swipeable session
+  sessionOnlineStatus: Record<string, boolean>; // sessionId -> isCliOnline
 
   // Actions
   fetchSessions: (silent?: boolean) => Promise<void>;
@@ -19,7 +21,12 @@ interface SessionStoreState {
   deleteEndedSessionsForMachine: (machineId: string) => Promise<void>;
   clearError: () => void;
   setOpenSwipeableId: (id: string | null) => void;
+  subscribeToPresence: () => void;
+  unsubscribeFromPresence: () => void;
 }
+
+// Keep track of presence channels outside the store
+const presenceChannels: Map<string, RealtimeChannel> = new Map();
 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({
   sessions: [],
@@ -27,6 +34,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   error: null,
   pendingSessionId: null,
   openSwipeableId: null,
+  sessionOnlineStatus: {},
 
   fetchSessions: async (silent = false) => {
     // Prevent duplicate fetches
@@ -213,4 +221,58 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   setOpenSwipeableId: (id: string | null) => set({ openSwipeableId: id }),
+
+  subscribeToPresence: () => {
+    const { sessions } = get();
+    const activeSessions = sessions.filter((s) => s.status === 'active');
+
+    // Unsubscribe from sessions that are no longer active
+    for (const [sessionId, channel] of presenceChannels) {
+      if (!activeSessions.find((s) => s.id === sessionId)) {
+        supabase.removeChannel(channel);
+        presenceChannels.delete(sessionId);
+      }
+    }
+
+    // Subscribe to presence for active sessions
+    for (const session of activeSessions) {
+      if (presenceChannels.has(session.id)) continue;
+
+      const channelName = REALTIME_CHANNELS.sessionPresence(session.id);
+      const channel = supabase.channel(channelName);
+
+      channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const isCliOnline = Object.values(state).some((presences) =>
+          (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
+        );
+        set((s) => ({
+          sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
+        }));
+      });
+
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Initial state - check if CLI is already online
+          const state = channel.presenceState();
+          const isCliOnline = Object.values(state).some((presences) =>
+            (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
+          );
+          set((s) => ({
+            sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
+          }));
+        }
+      });
+
+      presenceChannels.set(session.id, channel);
+    }
+  },
+
+  unsubscribeFromPresence: () => {
+    for (const [sessionId, channel] of presenceChannels) {
+      supabase.removeChannel(channel);
+    }
+    presenceChannels.clear();
+    set({ sessionOnlineStatus: {} });
+  },
 }));

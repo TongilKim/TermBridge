@@ -120,6 +120,50 @@ describe('RealtimeClient', () => {
     expect(mockSupabase.removeChannel).toHaveBeenCalledTimes(3);
   });
 
+  it('should connect to presence channel with session ID', async () => {
+    const client = new RealtimeClient({
+      supabase: mockSupabase as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+
+    const expectedPresenceChannel = REALTIME_CHANNELS.sessionPresence(
+      'test-session-123'
+    );
+    expect(mockSupabase.channel).toHaveBeenCalledWith(expectedPresenceChannel);
+  });
+
+  it('should track presence when connected', async () => {
+    const client = new RealtimeClient({
+      supabase: mockSupabase as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+
+    // Wait for async presence track callback
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(mockPresenceChannel.track).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'cli',
+      })
+    );
+  });
+
+  it('should untrack presence when disconnecting', async () => {
+    const client = new RealtimeClient({
+      supabase: mockSupabase as SupabaseClient,
+      sessionId: 'test-session-123',
+    });
+
+    await client.connect();
+    await client.disconnect();
+
+    expect(mockPresenceChannel.untrack).toHaveBeenCalled();
+  });
+
   it('should emit disconnected event when disconnecting', async () => {
     const client = new RealtimeClient({
       supabase: mockSupabase as SupabaseClient,
