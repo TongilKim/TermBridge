@@ -234,6 +234,13 @@ export function InputBar({ disabled }: InputBarProps) {
   };
 
   const handleCommandSelect = (command: SlashCommand) => {
+    // Handle /model command - open ModelPicker
+    if (command.name === 'model') {
+      setShowModelPicker(true);
+      setShowCommandPicker(false);
+      return;
+    }
+
     // Check if this is an interactive command
     if (INTERACTIVE_COMMANDS.has(command.name)) {
       requestInteractiveCommand(command.name as InteractiveCommandType);
