@@ -7,6 +7,7 @@ describe('RealtimeClient', () => {
   let mockSupabase: Partial<SupabaseClient>;
   let mockOutputChannel: Partial<RealtimeChannel>;
   let mockInputChannel: Partial<RealtimeChannel>;
+  let mockPresenceChannel: Partial<RealtimeChannel>;
   let subscribeCallback: ((status: string) => void) | null = null;
 
   beforeEach(() => {
@@ -30,10 +31,23 @@ describe('RealtimeClient', () => {
       on: vi.fn().mockReturnThis(),
     };
 
+    mockPresenceChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('SUBSCRIBED'), 0);
+        return mockPresenceChannel as RealtimeChannel;
+      }),
+      track: vi.fn().mockResolvedValue({ error: null }),
+      untrack: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
     mockSupabase = {
       channel: vi.fn((name) => {
         if (name.includes('output')) {
           return mockOutputChannel as RealtimeChannel;
+        }
+        if (name.includes('presence')) {
+          return mockPresenceChannel as RealtimeChannel;
         }
         return mockInputChannel as RealtimeChannel;
       }),
@@ -102,7 +116,8 @@ describe('RealtimeClient', () => {
     await client.connect();
     await client.disconnect();
 
-    expect(mockSupabase.removeChannel).toHaveBeenCalledTimes(2);
+    // 3 channels: output, input, presence
+    expect(mockSupabase.removeChannel).toHaveBeenCalledTimes(3);
   });
 
   it('should emit disconnected event when disconnecting', async () => {

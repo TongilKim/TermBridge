@@ -20,6 +20,7 @@ describe('Daemon', () => {
   let daemon: Daemon | null = null;
   let mockOutputChannel: Partial<RealtimeChannel>;
   let mockInputChannel: Partial<RealtimeChannel>;
+  let mockPresenceChannel: Partial<RealtimeChannel>;
 
   const mockMachine = {
     id: 'machine-123',
@@ -70,6 +71,16 @@ describe('Daemon', () => {
       on: vi.fn().mockReturnThis(),
     };
 
+    mockPresenceChannel = {
+      subscribe: vi.fn((cb) => {
+        setTimeout(() => cb('SUBSCRIBED'), 0);
+        return mockPresenceChannel as RealtimeChannel;
+      }),
+      track: vi.fn().mockResolvedValue({ error: null }),
+      untrack: vi.fn().mockResolvedValue({ error: null }),
+      on: vi.fn().mockReturnThis(),
+    };
+
     mockSupabase = {
       from: vi.fn((table) => {
         if (table === 'machines') {
@@ -107,6 +118,9 @@ describe('Daemon', () => {
       channel: vi.fn((name) => {
         if (name.includes('output')) {
           return mockOutputChannel as RealtimeChannel;
+        }
+        if (name.includes('presence')) {
+          return mockPresenceChannel as RealtimeChannel;
         }
         return mockInputChannel as RealtimeChannel;
       }),

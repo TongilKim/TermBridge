@@ -21,6 +21,7 @@ export class RealtimeClient extends EventEmitter {
   private sessionId: string;
   private outputChannel: RealtimeChannel | null = null;
   private inputChannel: RealtimeChannel | null = null;
+  private presenceChannel: RealtimeChannel | null = null;
   private seq: number = 0;
   private realtimeEnabled: boolean = false;
 
@@ -97,10 +98,40 @@ export class RealtimeClient extends EventEmitter {
     // Only enable realtime if both channels subscribed successfully
     this.realtimeEnabled = results.every((success) => success);
 
+    // Set up presence channel to track CLI online status
+    if (this.realtimeEnabled) {
+      const presenceChannelName = REALTIME_CHANNELS.sessionPresence(this.sessionId);
+      this.presenceChannel = this.supabase.channel(presenceChannelName);
+
+      await new Promise<void>((resolve) => {
+        this.presenceChannel!.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            // Track CLI as online
+            await this.presenceChannel!.track({
+              online_at: new Date().toISOString(),
+              type: 'cli',
+            });
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+            // Presence failed, but don't block - it's not critical
+            console.warn('[WARN] Presence channel failed. CLI status tracking disabled.');
+            resolve();
+          }
+        });
+      });
+    }
+
     this.emit('connected');
   }
 
   async disconnect(): Promise<void> {
+    // Untrack presence before disconnecting
+    if (this.presenceChannel) {
+      await this.presenceChannel.untrack();
+      await this.supabase.removeChannel(this.presenceChannel);
+      this.presenceChannel = null;
+    }
+
     if (this.outputChannel) {
       await this.supabase.removeChannel(this.outputChannel);
       this.outputChannel = null;
