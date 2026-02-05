@@ -1,12 +1,13 @@
 export type MessageType = 'output' | 'input' | 'error' | 'system';
 
 export type PermissionMode =
-  | 'default'
-  | 'acceptEdits'
-  | 'plan'
-  | 'bypassPermissions'
-  | 'delegate'
-  | 'dontAsk';
+  | 'default' // Ask before making changes
+  | 'acceptEdits' // Auto-approve file edits
+  | 'plan' // Plan mode (read-only, no execution)
+  | 'bypassPermissions' // Yolo mode (bypass all prompts)
+  // Legacy/internal modes - kept for SDK compatibility
+  | 'delegate' // Used when sub-agents are running
+  | 'dontAsk'; // Internal mode for certain SDK contexts
 
 export interface Message {
   id: number;
