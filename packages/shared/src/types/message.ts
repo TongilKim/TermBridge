@@ -31,7 +31,56 @@ export type RealtimeMessageType =
   | 'model-change'
   | 'models'
   | 'models-request'
-  | 'mobile-disconnect';
+  | 'mobile-disconnect'
+  | 'interactive-request'
+  | 'interactive-response'
+  | 'interactive-apply'
+  | 'interactive-confirm';
+
+export type InteractiveCommandType =
+  | 'config'
+  | 'permissions'
+  | 'allowed-tools'
+  | 'vim'
+  | 'mcp'
+  | 'agents'
+  | 'hooks';
+
+export type InteractiveUIType =
+  | 'select'
+  | 'toggle'
+  | 'multi-select'
+  | 'nested';
+
+export interface InteractiveOption {
+  id: string;
+  label: string;
+  description?: string;
+  value: unknown;
+  selected?: boolean;
+  children?: InteractiveOption[];
+}
+
+export interface InteractiveCommandData {
+  command: InteractiveCommandType;
+  uiType: InteractiveUIType;
+  title: string;
+  description?: string;
+  options: InteractiveOption[];
+  currentValue?: unknown;
+}
+
+export interface InteractiveApplyPayload {
+  command: InteractiveCommandType;
+  action: 'set' | 'add' | 'remove' | 'toggle';
+  key?: string;
+  value: unknown;
+}
+
+export interface InteractiveResult {
+  success: boolean;
+  message?: string;
+}
 
 export interface RealtimeMessage {
   type: RealtimeMessageType;
@@ -41,6 +90,10 @@ export interface RealtimeMessage {
   commands?: SlashCommand[];
   model?: string;
   availableModels?: ModelInfo[];
+  interactiveCommand?: InteractiveCommandType;
+  interactiveData?: InteractiveCommandData;
+  interactivePayload?: InteractiveApplyPayload;
+  interactiveResult?: InteractiveResult;
   timestamp: number;
   seq: number;
 }

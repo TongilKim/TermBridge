@@ -1,7 +1,17 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { RealtimeMessage, ImageAttachment, ModelInfo, PermissionMode, SlashCommand } from 'termbridge-shared';
+import type {
+  RealtimeMessage,
+  ImageAttachment,
+  ModelInfo,
+  PermissionMode,
+  SlashCommand,
+  InteractiveCommandType,
+  InteractiveCommandData,
+  InteractiveApplyPayload,
+  InteractiveResult,
+} from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -19,6 +29,11 @@ interface ConnectionStoreState {
   availableModels: ModelInfo[];
   isModelChanging: boolean;
 
+  // Interactive command state
+  interactiveData: InteractiveCommandData | null;
+  isInteractiveLoading: boolean;
+  interactiveError: string | null;
+
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -29,6 +44,11 @@ interface ConnectionStoreState {
   requestModels: () => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+
+  // Interactive actions
+  requestInteractiveCommand: (command: InteractiveCommandType) => Promise<void>;
+  applyInteractiveChange: (payload: InteractiveApplyPayload) => Promise<void>;
+  clearInteractive: () => void;
 }
 
 let outputChannel: RealtimeChannel | null = null;
@@ -47,6 +67,9 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   model: null,
   availableModels: [],
   isModelChanging: false,
+  interactiveData: null,
+  isInteractiveLoading: false,
+  interactiveError: null,
 
   connect: async (sessionId: string) => {
     try {
@@ -62,7 +85,10 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         commands: [],
         model: null,
         availableModels: [],
-        isModelChanging: false
+        isModelChanging: false,
+        interactiveData: null,
+        isInteractiveLoading: false,
+        interactiveError: null,
       });
 
       // First check if the session is still active
@@ -140,6 +166,28 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         // Handle available models list
         if (message.type === 'models' && message.availableModels) {
           set({ availableModels: message.availableModels });
+          return;
+        }
+
+        // Handle interactive response
+        if (message.type === 'interactive-response' && message.interactiveData) {
+          set({
+            interactiveData: message.interactiveData,
+            isInteractiveLoading: false,
+            interactiveError: null,
+          });
+          return;
+        }
+
+        // Handle interactive confirm
+        if (message.type === 'interactive-confirm') {
+          // The result is in the message, we can clear interactive state
+          // The system message will show the result
+          if (message.interactiveResult && !message.interactiveResult.success) {
+            set({ interactiveError: message.interactiveResult.message || 'Failed to apply change' });
+          } else {
+            set({ interactiveData: null, interactiveError: null });
+          }
           return;
         }
 
@@ -341,4 +389,60 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  requestInteractiveCommand: async (command: InteractiveCommandType) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ interactiveError: 'Not connected' });
+      return;
+    }
+
+    set({ isInteractiveLoading: true, interactiveError: null });
+
+    const message: RealtimeMessage = {
+      type: 'interactive-request',
+      interactiveCommand: command,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    try {
+      await inputChannel.send({
+        type: 'broadcast',
+        event: 'input',
+        payload: message,
+      });
+    } catch {
+      set({ isInteractiveLoading: false, interactiveError: 'Failed to send request' });
+    }
+  },
+
+  applyInteractiveChange: async (payload: InteractiveApplyPayload) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ interactiveError: 'Not connected' });
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'interactive-apply',
+      interactivePayload: payload,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    try {
+      await inputChannel.send({
+        type: 'broadcast',
+        event: 'input',
+        payload: message,
+      });
+    } catch {
+      set({ interactiveError: 'Failed to apply change' });
+    }
+  },
+
+  clearInteractive: () => set({
+    interactiveData: null,
+    isInteractiveLoading: false,
+    interactiveError: null,
+  }),
 }));

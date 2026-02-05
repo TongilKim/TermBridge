@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ImageAttachment, ModelInfo, RealtimeMessage, SlashCommand } from 'termbridge-shared';
+import type {
+  ImageAttachment,
+  InteractiveCommandType,
+  ModelInfo,
+  RealtimeMessage,
+  SlashCommand,
+} from 'termbridge-shared';
 
 // Mock Claude Agent SDK
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -467,6 +473,114 @@ describe('Daemon', () => {
       // The sendPrompt method should exist and accept attachments
       // This is validated by TypeScript - if it compiles, the interface is correct
       expect(typeof daemon.sendPrompt).toBe('function');
+    });
+  });
+
+  describe('interactive command handling', () => {
+    it('should handle interactive-request message from mobile', async () => {
+      let inputHandler: ((payload: any) => void) | null = null;
+
+      mockInputChannel.on = vi.fn((event, filter, handler) => {
+        if (event === 'broadcast' && filter.event === 'input') {
+          inputHandler = handler;
+        }
+        return mockInputChannel as RealtimeChannel;
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sendSpy = mockOutputChannel.send;
+
+      // Simulate receiving interactive-request from mobile
+      if (inputHandler) {
+        inputHandler({
+          payload: {
+            type: 'interactive-request',
+            interactiveCommand: 'permissions' as InteractiveCommandType,
+            timestamp: Date.now(),
+            seq: 1,
+          },
+        });
+      }
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify broadcastInteractiveResponse was called
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'interactive-response',
+            interactiveData: expect.objectContaining({
+              command: 'permissions',
+              uiType: 'select',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should handle interactive-apply message from mobile', async () => {
+      let inputHandler: ((payload: any) => void) | null = null;
+
+      mockInputChannel.on = vi.fn((event, filter, handler) => {
+        if (event === 'broadcast' && filter.event === 'input') {
+          inputHandler = handler;
+        }
+        return mockInputChannel as RealtimeChannel;
+      });
+
+      daemon = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon.start();
+
+      const sendSpy = mockOutputChannel.send;
+
+      // Simulate receiving interactive-apply from mobile
+      if (inputHandler) {
+        inputHandler({
+          payload: {
+            type: 'interactive-apply',
+            interactivePayload: {
+              command: 'vim' as InteractiveCommandType,
+              action: 'toggle',
+              value: true,
+            },
+            timestamp: Date.now(),
+            seq: 1,
+          },
+        });
+      }
+
+      // Wait for async operations
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify broadcastInteractiveConfirm was called
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'broadcast',
+          event: 'output',
+          payload: expect.objectContaining({
+            type: 'interactive-confirm',
+            interactiveCommand: 'vim',
+            interactiveResult: expect.objectContaining({
+              success: true,
+            }),
+          }),
+        })
+      );
     });
   });
 

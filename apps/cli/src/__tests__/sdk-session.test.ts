@@ -345,4 +345,56 @@ describe('SdkSession', () => {
       expect(sdkSession.getConversationHistory().length).toBe(0);
     });
   });
+
+  describe('thinking mode', () => {
+    it('should have thinking mode disabled by default', () => {
+      expect(sdkSession.getThinkingMode()).toBe(false);
+    });
+
+    it('should allow setting thinking mode', async () => {
+      await sdkSession.setThinkingMode(true);
+      expect(sdkSession.getThinkingMode()).toBe(true);
+    });
+
+    it('should emit thinking-mode event when mode is changed', async () => {
+      const thinkingModeHandler = vi.fn();
+      sdkSession.on('thinking-mode', thinkingModeHandler);
+
+      await sdkSession.setThinkingMode(true);
+
+      expect(thinkingModeHandler).toHaveBeenCalledWith(true);
+    });
+
+    it('should call setMaxThinkingTokens on query when thinking is enabled', async () => {
+      const mockSetMaxThinkingTokens = vi.fn().mockResolvedValue(undefined);
+      mockedQuery.mockImplementation(() => {
+        const queryObj = (async function* () {
+          yield { type: 'result', result: 'done' };
+        })();
+        (queryObj as any).setMaxThinkingTokens = mockSetMaxThinkingTokens;
+        return queryObj as any;
+      });
+
+      await sdkSession.setThinkingMode(true);
+      await sdkSession.sendPrompt('Hello');
+
+      expect(mockSetMaxThinkingTokens).toHaveBeenCalledWith(null);
+    });
+
+    it('should not call setMaxThinkingTokens when thinking is disabled', async () => {
+      const mockSetMaxThinkingTokens = vi.fn().mockResolvedValue(undefined);
+      mockedQuery.mockImplementation(() => {
+        const queryObj = (async function* () {
+          yield { type: 'result', result: 'done' };
+        })();
+        (queryObj as any).setMaxThinkingTokens = mockSetMaxThinkingTokens;
+        return queryObj as any;
+      });
+
+      await sdkSession.setThinkingMode(false);
+      await sdkSession.sendPrompt('Hello');
+
+      expect(mockSetMaxThinkingTokens).not.toHaveBeenCalled();
+    });
+  });
 });

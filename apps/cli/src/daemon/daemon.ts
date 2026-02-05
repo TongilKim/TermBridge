@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SdkSession } from './sdk-session.js';
 import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
+import { ConfigManager } from './config-manager.js';
 import { RealtimeClient } from '../realtime/client.js';
 import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from 'termbridge-shared';
 import { NOTIFICATION_TYPES } from 'termbridge-shared';
@@ -21,6 +22,7 @@ export class Daemon extends EventEmitter {
   private sdkSession: SdkSession;
   private sessionManager: SessionManager;
   private machineManager: MachineManager;
+  private configManager: ConfigManager;
   private realtimeClient: RealtimeClient | null = null;
   private machine: Machine | null = null;
   private session: Session | null = null;
@@ -43,6 +45,16 @@ export class Daemon extends EventEmitter {
     this.machineManager = new MachineManager({
       supabase: options.supabase,
     });
+
+    this.configManager = new ConfigManager({
+      cwd: options.cwd,
+    });
+
+    // Initialize thinking mode from settings
+    const thinkingEnabled = this.configManager.getThinkingMode();
+    if (thinkingEnabled) {
+      this.sdkSession.setThinkingMode(true);
+    }
   }
 
   async start(): Promise<void> {
@@ -223,6 +235,50 @@ export class Daemon extends EventEmitter {
           process.stdout.write('\n[TermBridge] Mobile client disconnected.\n');
         }
         this.emit('mobile-disconnected');
+        return;
+      }
+
+      // Handle interactive command request
+      if (message.type === 'interactive-request' && message.interactiveCommand) {
+        const data = this.configManager.getInteractiveData(message.interactiveCommand);
+        if (this.realtimeClient) {
+          try {
+            await this.realtimeClient.broadcastInteractiveResponse(data);
+          } catch {
+            // Silently handle broadcast errors
+          }
+        }
+        return;
+      }
+
+      // Handle interactive apply
+      if (message.type === 'interactive-apply' && message.interactivePayload) {
+        const result = this.configManager.applyChange(message.interactivePayload);
+
+        // If thinking mode was changed, also update the running SDK session
+        if (
+          message.interactivePayload.command === 'config' &&
+          message.interactivePayload.key === 'alwaysThinkingEnabled'
+        ) {
+          const enabled = Boolean(message.interactivePayload.value);
+          await this.sdkSession.setThinkingMode(enabled);
+        }
+
+        if (this.realtimeClient) {
+          try {
+            await this.realtimeClient.broadcastInteractiveConfirm(
+              message.interactivePayload.command,
+              result
+            );
+            // Also broadcast a system message for confirmation
+            const statusText = result.success
+              ? `✓ ${result.message}`
+              : `✗ ${result.message}`;
+            await this.realtimeClient.broadcastSystem(statusText);
+          } catch {
+            // Silently handle broadcast errors
+          }
+        }
         return;
       }
 

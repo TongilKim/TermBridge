@@ -29,6 +29,7 @@ export class SdkSession extends EventEmitter {
   private currentModel: string = 'default';
   private conversationHistory: ConversationMessage[] = [];
   private pendingContextTransfer: boolean = false;
+  private thinkingEnabled: boolean = false;
 
   constructor(options: SdkSessionOptions) {
     super();
@@ -44,6 +45,26 @@ export class SdkSession extends EventEmitter {
 
   getPermissionMode(): PermissionMode {
     return this.currentPermissionMode;
+  }
+
+  async setThinkingMode(enabled: boolean): Promise<void> {
+    this.thinkingEnabled = enabled;
+
+    // If there's an active query, update it at runtime
+    if (this.currentQuery) {
+      try {
+        // Use null to enable with SDK default, 0 to disable
+        await this.currentQuery.setMaxThinkingTokens(enabled ? null : 0);
+      } catch {
+        // Silently ignore if the query doesn't support this
+      }
+    }
+
+    this.emit('thinking-mode', enabled);
+  }
+
+  getThinkingMode(): boolean {
+    return this.thinkingEnabled;
   }
 
   async sendPrompt(prompt: string, attachments?: ImageAttachment[]): Promise<void> {
@@ -133,6 +154,15 @@ export class SdkSession extends EventEmitter {
         prompt: queryPrompt,
         options: queryOptions,
       });
+
+      // Enable thinking mode if set (use null to enable with SDK default)
+      if (this.thinkingEnabled) {
+        try {
+          await this.currentQuery.setMaxThinkingTokens(null);
+        } catch {
+          // Silently ignore if not supported
+        }
+      }
 
       // Track assistant response for this turn
       let assistantResponse = '';

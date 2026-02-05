@@ -18,7 +18,19 @@ import { useConnectionStore } from '../stores/connectionStore';
 import { convertImageToBase64 } from '../utils/imageUtils';
 import { CommandPicker } from './CommandPicker';
 import { ModelPicker } from './ModelPicker';
-import type { PermissionMode, SlashCommand } from 'termbridge-shared';
+import { InteractivePicker } from './InteractivePicker';
+import type { PermissionMode, SlashCommand, InteractiveCommandType } from 'termbridge-shared';
+
+// Commands that require interactive UI instead of text input
+const INTERACTIVE_COMMANDS = new Set<string>([
+  'config',
+  'permissions',
+  'allowed-tools',
+  'vim',
+  'mcp',
+  'agents',
+  'hooks',
+]);
 
 // Format model identifier to friendly display name
 function formatModelName(model: string | null): string {
@@ -75,11 +87,29 @@ export function InputBar({ disabled }: InputBarProps) {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [showInteractivePicker, setShowInteractivePicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { sendInput, sendModeChange, sendModelChange, state, permissionMode, commands, isTyping, model, availableModels, isModelChanging } = useConnectionStore();
+  const {
+    sendInput,
+    sendModeChange,
+    sendModelChange,
+    state,
+    permissionMode,
+    commands,
+    isTyping,
+    model,
+    availableModels,
+    isModelChanging,
+    interactiveData,
+    isInteractiveLoading,
+    interactiveError,
+    requestInteractiveCommand,
+    applyInteractiveChange,
+    clearInteractive,
+  } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected' || isSending || isTyping;
   const modeLabel = getModeLabel(permissionMode);
 
@@ -204,8 +234,22 @@ export function InputBar({ disabled }: InputBarProps) {
   };
 
   const handleCommandSelect = (command: SlashCommand) => {
+    // Check if this is an interactive command
+    if (INTERACTIVE_COMMANDS.has(command.name)) {
+      requestInteractiveCommand(command.name as InteractiveCommandType);
+      setShowInteractivePicker(true);
+      setShowCommandPicker(false);
+      return;
+    }
+
+    // Regular command - insert into input
     setInput(`/${command.name} `);
     setShowCommandPicker(false);
+  };
+
+  const handleInteractiveClose = () => {
+    setShowInteractivePicker(false);
+    clearInteractive();
   };
 
   const handleCommandsPress = async () => {
@@ -353,6 +397,15 @@ export function InputBar({ disabled }: InputBarProps) {
           setShowModelPicker(false);
         }}
         onClose={() => setShowModelPicker(false)}
+      />
+
+      <InteractivePicker
+        visible={showInteractivePicker}
+        data={interactiveData}
+        isLoading={isInteractiveLoading}
+        error={interactiveError}
+        onApply={applyInteractiveChange}
+        onClose={handleInteractiveClose}
       />
     </View>
   );
