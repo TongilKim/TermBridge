@@ -19,6 +19,7 @@ import { convertImageToBase64 } from '../utils/imageUtils';
 import { CommandPicker } from './CommandPicker';
 import { ModelPicker } from './ModelPicker';
 import { InteractivePicker } from './InteractivePicker';
+import { ResumeSessionPicker } from './ResumeSessionPicker';
 import type { SlashCommand, InteractiveCommandType } from 'termbridge-shared';
 
 // Commands that require interactive UI instead of text input
@@ -46,6 +47,7 @@ export function InputBar({ disabled }: InputBarProps) {
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showInteractivePicker, setShowInteractivePicker] = useState(false);
+  const [showResumeSessionPicker, setShowResumeSessionPicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -66,6 +68,7 @@ export function InputBar({ disabled }: InputBarProps) {
     applyInteractiveChange,
     clearInteractive,
     clearMessages,
+    sessionId,
   } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected' || isSending || isTyping;
 
@@ -193,6 +196,13 @@ export function InputBar({ disabled }: InputBarProps) {
       return;
     }
 
+    // Handle /resume command - show session picker
+    if (command.name === 'resume') {
+      setShowResumeSessionPicker(true);
+      setShowCommandPicker(false);
+      return;
+    }
+
     // Check if this is an interactive command
     if (INTERACTIVE_COMMANDS.has(command.name)) {
       requestInteractiveCommand(command.name as InteractiveCommandType);
@@ -209,6 +219,13 @@ export function InputBar({ disabled }: InputBarProps) {
   const handleInteractiveClose = () => {
     setShowInteractivePicker(false);
     clearInteractive();
+  };
+
+  const handleResumeSessionSelect = async (selectedSessionId: string) => {
+    setShowResumeSessionPicker(false);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Send /resume command with the selected session ID
+    await sendInput(`/resume ${selectedSessionId}\n`);
   };
 
   const handleCommandsPress = async () => {
@@ -326,6 +343,13 @@ export function InputBar({ disabled }: InputBarProps) {
         error={interactiveError}
         onApply={applyInteractiveChange}
         onClose={handleInteractiveClose}
+      />
+
+      <ResumeSessionPicker
+        visible={showResumeSessionPicker}
+        currentSessionId={sessionId}
+        onSelect={handleResumeSessionSelect}
+        onClose={() => setShowResumeSessionPicker(false)}
       />
     </View>
   );
