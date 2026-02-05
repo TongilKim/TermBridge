@@ -273,6 +273,8 @@ export class SdkSession extends EventEmitter {
 
   clearHistory(): void {
     this.conversationHistory = [];
+    // Also clear session ID to force a fresh session on next prompt
+    this.sessionId = null;
   }
 
   async getSupportedModels(): Promise<ModelInfo[]> {

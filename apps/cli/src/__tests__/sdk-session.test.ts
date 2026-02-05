@@ -322,7 +322,7 @@ describe('SdkSession', () => {
       // Context should be included (we'll verify the structure in implementation)
     });
 
-    it('should clear conversation history when clearHistory is called', async () => {
+    it('should clear conversation history and session ID when clearHistory is called', async () => {
       mockedQuery.mockImplementation(async function* () {
         yield {
           type: 'system',
@@ -340,9 +340,33 @@ describe('SdkSession', () => {
 
       await sdkSession.sendPrompt('Hello');
       expect(sdkSession.getConversationHistory().length).toBe(2);
+      expect(sdkSession.getSessionId()).toBe('test-session-123');
 
       sdkSession.clearHistory();
       expect(sdkSession.getConversationHistory().length).toBe(0);
+      expect(sdkSession.getSessionId()).toBeNull();
+    });
+
+    it('should not resume session after clearHistory', async () => {
+      mockedQuery.mockImplementation(async function* () {
+        yield {
+          type: 'system',
+          subtype: 'init',
+          session_id: 'test-session-123',
+        };
+        yield { type: 'result', result: 'done' };
+      } as any);
+
+      await sdkSession.sendPrompt('First message');
+      expect(sdkSession.getSessionId()).toBe('test-session-123');
+
+      sdkSession.clearHistory();
+
+      // Send another message - should NOT have resume option
+      await sdkSession.sendPrompt('Second message');
+
+      const secondCall = mockedQuery.mock.calls[1][0];
+      expect(secondCall.options.resume).toBeUndefined();
     });
   });
 
