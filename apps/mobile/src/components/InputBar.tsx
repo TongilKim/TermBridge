@@ -64,6 +64,7 @@ export function InputBar({ disabled }: InputBarProps) {
     requestInteractiveCommand,
     applyInteractiveChange,
     clearInteractive,
+    clearMessages,
   } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected' || isSending || isTyping;
 
@@ -161,6 +162,33 @@ export function InputBar({ disabled }: InputBarProps) {
     if (command.name === 'model') {
       setShowModelPicker(true);
       setShowCommandPicker(false);
+      return;
+    }
+
+    // Handle /clear command - show confirmation
+    if (command.name === 'clear') {
+      setShowCommandPicker(false);
+      Alert.alert(
+        'Clear Conversation',
+        'This will clear all messages and reset the conversation with Claude. This cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: async () => {
+              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              // Clear local messages
+              clearMessages();
+              // Send /clear to CLI to reset Claude's session
+              await sendInput('/clear\n');
+            },
+          },
+        ]
+      );
       return;
     }
 
