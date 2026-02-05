@@ -104,8 +104,12 @@ export class RealtimeClient extends EventEmitter {
       this.presenceChannel = this.supabase.channel(presenceChannelName);
 
       await new Promise<void>((resolve) => {
+        let resolved = false;
         this.presenceChannel!.subscribe(async (status) => {
+          if (resolved) return; // Only handle first result
+
           if (status === 'SUBSCRIBED') {
+            resolved = true;
             // Track CLI as online
             await this.presenceChannel!.track({
               online_at: new Date().toISOString(),
@@ -113,6 +117,7 @@ export class RealtimeClient extends EventEmitter {
             });
             resolve();
           } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+            resolved = true;
             // Presence failed, but don't block - it's not critical
             console.warn('[WARN] Presence channel failed. CLI status tracking disabled.');
             resolve();

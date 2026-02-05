@@ -80,7 +80,7 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { messages, state, isTyping } = useConnectionStore();
+  const { messages, state, isTyping, isCliOnline } = useConnectionStore();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -149,6 +149,11 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
                 ? 'Reconnecting...'
                 : 'Disconnected'}
           </Text>
+        </View>
+      )}
+      {state === 'connected' && !isCliOnline && (
+        <View style={[styles.statusBanner, styles.status_cliOffline]}>
+          <Text style={styles.statusText}>CLI Offline (laptop may be sleeping)</Text>
         </View>
       )}
       <ScrollView
@@ -641,6 +646,9 @@ const styles = StyleSheet.create({
   },
   status_connected: {
     backgroundColor: '#22c55e',
+  },
+  status_cliOffline: {
+    backgroundColor: '#6b7280',
   },
   statusText: {
     color: '#ffffff',
