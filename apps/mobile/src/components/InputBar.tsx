@@ -32,27 +32,6 @@ const INTERACTIVE_COMMANDS = new Set<string>([
   'hooks',
 ]);
 
-// Format model identifier to friendly display name
-function formatModelName(model: string | null): string {
-  if (!model) return 'Model';
-  // Handle SDK shorthand values
-  if (model === 'default') return 'Sonnet 4';
-  if (model === 'opus') return 'Opus';
-  if (model === 'haiku') return 'Haiku';
-  if (model === 'sonnet') return 'Sonnet 4';
-  // Handle full model identifiers
-  if (model.includes('opus-4')) return 'Opus 4';
-  if (model.includes('sonnet-4-5')) return 'Sonnet 4.5';
-  if (model.includes('sonnet-4-0') || model.includes('sonnet-4-2')) return 'Sonnet 4';
-  if (model.includes('haiku')) return 'Haiku 3.5';
-  // Fallback: extract model name from identifier
-  const parts = model.split('-');
-  if (parts.length >= 2) {
-    return parts.slice(1, 3).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-  }
-  return model;
-}
-
 // Helper function to get human-readable mode label
 function getModeLabel(mode: PermissionMode | null): string | null {
   if (!mode) return null;
@@ -102,7 +81,6 @@ export function InputBar({ disabled }: InputBarProps) {
     isTyping,
     model,
     availableModels,
-    isModelChanging,
     interactiveData,
     isInteractiveLoading,
     interactiveError,
@@ -341,35 +319,6 @@ export function InputBar({ disabled }: InputBarProps) {
             <Text style={[styles.modeText, isDark && styles.modeTextDark]}>
               {modeLabel || 'Select mode'}
             </Text>
-          </TouchableOpacity>
-          {/* Model selector - disabled when no models available or changing */}
-          <TouchableOpacity
-            style={[
-              styles.modelIndicator,
-              isDark && styles.modelIndicatorDark,
-              model && !isModelChanging && styles.modelIndicatorActive,
-              model && !isModelChanging && isDark && styles.modelIndicatorActiveDark,
-              (isDisabled || availableModels.length === 0 || isModelChanging) && styles.modelIndicatorDisabled,
-            ]}
-            onPress={() => setShowModelPicker(true)}
-            disabled={isDisabled || availableModels.length === 0 || isModelChanging}
-          >
-            <Text style={[
-              styles.modelText,
-              isDark && styles.modelTextDark,
-              model && !isModelChanging && styles.modelTextActive,
-              model && !isModelChanging && isDark && styles.modelTextActiveDark,
-            ]}>
-              {isModelChanging ? 'Changing...' : formatModelName(model)}
-            </Text>
-            {!isModelChanging && (
-              <Text style={[
-                styles.modelChevron,
-                isDark && styles.modelChevronDark,
-                model && styles.modelChevronActive,
-                model && isDark && styles.modelChevronActiveDark,
-              ]}>▼</Text>
-            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -630,60 +579,5 @@ const styles = StyleSheet.create({
   },
   modeTextDark: {
     color: '#9ca3af',
-  },
-  // Model indicator (inactive - no model selected)
-  modelIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginRight: 8,
-    gap: 4,
-  },
-  modelIndicatorDark: {
-    backgroundColor: '#374151',
-  },
-  // Model indicator active (model selected)
-  modelIndicatorActive: {
-    backgroundColor: '#ede9fe',
-  },
-  modelIndicatorActiveDark: {
-    backgroundColor: '#4c1d95',
-  },
-  modelIndicatorDisabled: {
-    opacity: 0.5,
-  },
-  // Model text (inactive)
-  modelText: {
-    fontSize: 11,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  modelTextDark: {
-    color: '#9ca3af',
-  },
-  // Model text active
-  modelTextActive: {
-    color: '#6d28d9',
-  },
-  modelTextActiveDark: {
-    color: '#c4b5fd',
-  },
-  // Model chevron (inactive)
-  modelChevron: {
-    fontSize: 8,
-    color: '#6b7280',
-  },
-  modelChevronDark: {
-    color: '#9ca3af',
-  },
-  // Model chevron active
-  modelChevronActive: {
-    color: '#6d28d9',
-  },
-  modelChevronActiveDark: {
-    color: '#c4b5fd',
   },
 });
