@@ -419,6 +419,7 @@ export class SdkSession extends EventEmitter {
       { name: 'help', description: 'Show all commands and custom slash commands', argumentHint: '' },
       { name: 'clear', description: 'Clear the conversation history', argumentHint: '' },
       { name: 'compact', description: 'Compress conversation by summarizing older messages', argumentHint: '' },
+      { name: 'resume', description: 'Resume a previous conversation', argumentHint: '<session-id>' },
       { name: 'rewind', description: 'Go back to a previous message in the session', argumentHint: '' },
       { name: 'context', description: 'Check context and excluded skills', argumentHint: '' },
       // Configuration
