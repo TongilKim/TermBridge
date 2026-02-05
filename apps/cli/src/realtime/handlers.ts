@@ -23,15 +23,6 @@ export class MessageHandler extends EventEmitter {
 
     // Emit event for the message type
     this.emit(message.type, message);
-
-    // Special handling for ping - auto-respond with pong
-    if (message.type === 'ping') {
-      this.emit('send-pong', {
-        type: 'pong' as RealtimeMessageType,
-        timestamp: Date.now(),
-        seq: message.seq,
-      });
-    }
   }
 
   removeHandler(type: RealtimeMessageType, callback: HandlerCallback): void {

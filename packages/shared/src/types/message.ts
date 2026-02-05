@@ -22,8 +22,6 @@ export type RealtimeMessageType =
   | 'input'
   | 'error'
   | 'system'
-  | 'ping'
-  | 'pong'
   | 'mode'
   | 'mode-change'
   | 'commands'

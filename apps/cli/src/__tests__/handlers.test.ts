@@ -41,26 +41,6 @@ describe('MessageHandler', () => {
     expect(callback).toHaveBeenCalledWith(message);
   });
 
-  it('should process ping message and respond with pong', () => {
-    const pongCallback = vi.fn();
-    handler.on('send-pong', pongCallback);
-
-    const message: RealtimeMessage = {
-      type: 'ping',
-      timestamp: Date.now(),
-      seq: 3,
-    };
-
-    handler.handleMessage(message);
-
-    expect(pongCallback).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'pong',
-        seq: 3,
-      })
-    );
-  });
-
   it('should process system message correctly', () => {
     const callback = vi.fn();
     handler.registerHandler('system', callback);

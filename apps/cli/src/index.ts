@@ -21,7 +21,6 @@ const version = packageJson.version || '0.0.0';
 // Library exports
 export { Config, getConfig } from './utils/config.js';
 export { Logger, getLogger } from './utils/logger.js';
-export { ConnectionManager } from './realtime/connection.js';
 export { RealtimeClient } from './realtime/client.js';
 export { MessageHandler } from './realtime/handlers.js';
 export { SessionManager } from './daemon/session.js';
