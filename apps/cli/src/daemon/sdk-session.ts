@@ -248,6 +248,16 @@ export class SdkSession extends EventEmitter {
     return this.sessionId;
   }
 
+  /**
+   * Resume a different session by setting its ID.
+   * The next sendPrompt call will use this session ID.
+   */
+  resumeSession(sessionId: string): void {
+    this.sessionId = sessionId;
+    this.conversationHistory = []; // Clear local history since we're resuming a different session
+    this.emit('session-resumed', sessionId);
+  }
+
   isActive(): boolean {
     return this.isProcessing;
   }
@@ -292,10 +302,10 @@ export class SdkSession extends EventEmitter {
     try {
       const sdkModels = await this.currentQuery.supportedModels();
       if (sdkModels && sdkModels.length > 0) {
-        // Map SDK models
-        const mappedModels = sdkModels.map((m) => ({
-          value: m.value || m.name || '',
-          displayName: m.displayName || m.name || '',
+        // Map SDK models - SDK returns objects with value, displayName, description
+        const mappedModels = sdkModels.map((m: { value?: string; displayName?: string; description?: string }) => ({
+          value: m.value || '',
+          displayName: m.displayName || m.value || '',
           description: m.description || '',
         }));
 

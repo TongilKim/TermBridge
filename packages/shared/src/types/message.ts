@@ -37,7 +37,9 @@ export type RealtimeMessageType =
   | 'interactive-response'
   | 'interactive-apply'
   | 'interactive-confirm'
-  | 'clear-request'; // Request to clear conversation (doesn't appear in chat)
+  | 'clear-request' // Request to clear conversation (doesn't appear in chat)
+  | 'resume-request' // Request to resume a different session (doesn't appear in chat)
+  | 'resume-history'; // Tells mobile to load messages from a previous session
 
 export type InteractiveCommandType =
   | 'config'
@@ -96,6 +98,8 @@ export interface RealtimeMessage {
   interactiveData?: InteractiveCommandData;
   interactivePayload?: InteractiveApplyPayload;
   interactiveResult?: InteractiveResult;
+  resumeSessionId?: string; // SDK session ID for resume-request
+  historySessionId?: string; // Supabase session ID to load messages from (for resume-history)
   timestamp: number;
   seq: number;
 }

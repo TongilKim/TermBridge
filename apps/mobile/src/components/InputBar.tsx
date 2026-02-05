@@ -56,6 +56,7 @@ export function InputBar({ disabled }: InputBarProps) {
     sendInput,
     sendModelChange,
     sendClearRequest,
+    sendResumeRequest,
     state,
     commands,
     isTyping,
@@ -224,8 +225,8 @@ export function InputBar({ disabled }: InputBarProps) {
   const handleResumeSessionSelect = async (selectedSessionId: string) => {
     setShowResumeSessionPicker(false);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Send /resume command with the selected session ID
-    await sendInput(`/resume ${selectedSessionId}\n`);
+    // Send resume request (doesn't appear in chat)
+    await sendResumeRequest(selectedSessionId);
   };
 
   const handleCommandsPress = async () => {

@@ -45,6 +45,7 @@ interface ConnectionStoreState {
   clearMessages: () => void;
   clearError: () => void;
   sendClearRequest: () => Promise<void>;
+  sendResumeRequest: (sdkSessionId: string) => Promise<void>;
 
   // Interactive actions
   requestInteractiveCommand: (command: InteractiveCommandType) => Promise<void>;
@@ -192,6 +193,31 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
           return;
         }
 
+        // Handle resume-history - load messages from a previous session
+        if (message.type === 'resume-history' && message.historySessionId) {
+          // Fetch messages from the resumed session and prepend to current messages
+          supabase
+            .from('messages')
+            .select('*')
+            .eq('session_id', message.historySessionId)
+            .order('seq', { ascending: true })
+            .then(({ data: historicalMessages, error }) => {
+              if (!error && historicalMessages && historicalMessages.length > 0) {
+                const resumedMessages: RealtimeMessage[] = historicalMessages.map((msg) => ({
+                  type: msg.type as RealtimeMessage['type'],
+                  content: msg.content,
+                  timestamp: new Date(msg.created_at).getTime(),
+                  seq: msg.seq,
+                }));
+                // Prepend resumed messages to current messages
+                set((state) => ({
+                  messages: [...resumedMessages, ...state.messages],
+                }));
+              }
+            });
+          return;
+        }
+
         set((state) => {
           // Skip duplicate messages (already loaded from history)
           // Only check duplicates within the same message type to avoid
@@ -325,6 +351,33 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       event: 'input',
       payload: message,
     });
+  },
+
+  sendResumeRequest: async (sdkSessionId: string) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    // Set typing indicator while resuming
+    set({ isTyping: true });
+
+    const message: RealtimeMessage = {
+      type: 'resume-request',
+      resumeSessionId: sdkSessionId,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    try {
+      await inputChannel.send({
+        type: 'broadcast',
+        event: 'input',
+        payload: message,
+      });
+    } catch {
+      set({ error: 'Failed to send resume request', isTyping: false });
+    }
   },
 
   sendModeChange: async (mode: PermissionMode) => {

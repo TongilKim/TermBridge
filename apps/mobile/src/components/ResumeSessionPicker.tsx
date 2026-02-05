@@ -46,6 +46,7 @@ export function ResumeSessionPicker({
         .from('sessions')
         .select('*')
         .neq('status', 'active')
+        .not('sdk_session_id', 'is', null) // Only sessions with SDK session ID (can be resumed)
         .order('started_at', { ascending: false })
         .limit(20);
 
@@ -56,7 +57,7 @@ export function ResumeSessionPicker({
 
       // Filter out current session
       const filteredSessions = (data || []).filter(
-        (s) => s.id !== currentSessionId
+        (s) => s.id !== currentSessionId && s.sdk_session_id
       );
       setSessions(filteredSessions);
     } catch {
@@ -152,7 +153,7 @@ export function ResumeSessionPicker({
                 <TouchableOpacity
                   key={session.id}
                   style={[styles.sessionItem, isDark && styles.sessionItemDark]}
-                  onPress={() => onSelect(session.id)}
+                  onPress={() => onSelect(session.sdk_session_id!)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.sessionHeader}>

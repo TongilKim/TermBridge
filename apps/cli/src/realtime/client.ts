@@ -365,6 +365,32 @@ export class RealtimeClient extends EventEmitter {
     this.emit('broadcast', message);
   }
 
+  async broadcastResumeHistory(historySessionId: string): Promise<void> {
+    if (!this.outputChannel) {
+      throw new Error('Not connected');
+    }
+
+    // Skip broadcasting if realtime is not enabled
+    if (!this.realtimeEnabled) {
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'resume-history',
+      historySessionId,
+      timestamp: Date.now(),
+      seq: ++this.seq,
+    };
+
+    await this.outputChannel.send({
+      type: 'broadcast',
+      event: 'output',
+      payload: message,
+    });
+
+    this.emit('broadcast', message);
+  }
+
   getSeq(): number {
     return this.seq;
   }

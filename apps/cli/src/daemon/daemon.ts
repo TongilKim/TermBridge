@@ -110,6 +110,16 @@ export class Daemon extends EventEmitter {
       await this.broadcastCommands();
     });
 
+    // Save SDK session ID to Supabase for resume functionality
+    this.sdkSession.on('session-started', async (sdkSessionId: string) => {
+      if (!this.session) return;
+      try {
+        await this.sessionManager.updateSdkSessionId(this.session.id, sdkSessionId);
+      } catch {
+        // Silently handle - non-critical for basic functionality
+      }
+    });
+
     this.sdkSession.on('complete', async () => {
       // Session query completed, ready for next input
       if (this.options.hybrid !== false) {
@@ -291,14 +301,50 @@ export class Daemon extends EventEmitter {
         return;
       }
 
+      // Handle resume request from mobile (doesn't appear in chat)
+      if (message.type === 'resume-request' && message.resumeSessionId) {
+        const targetSdkSessionId = message.resumeSessionId;
+        this.sdkSession.resumeSession(targetSdkSessionId);
+
+        const confirmationMsg = `[Resuming session: ${targetSdkSessionId.slice(0, 8)}...]`;
+        if (this.options.hybrid !== false) {
+          process.stdout.write(`\n${confirmationMsg}\n`);
+        }
+
+        if (this.realtimeClient) {
+          try {
+            // Find the Supabase session with this SDK session ID to load its messages
+            const { data: sessionData } = await this.options.supabase
+              .from('sessions')
+              .select('id')
+              .eq('sdk_session_id', targetSdkSessionId)
+              .single();
+
+            if (sessionData) {
+              // Tell mobile to load messages from this session
+              await this.realtimeClient.broadcastResumeHistory(sessionData.id);
+            }
+
+            await this.realtimeClient.broadcastSystem(confirmationMsg);
+          } catch {
+            // Silently handle broadcast errors
+          }
+        }
+
+        // Send a prompt to trigger the resumed session
+        await this.sdkSession.sendPrompt('Continue from where we left off.');
+        return;
+      }
+
       // Remove trailing newline/carriage return for SDK
       const prompt = message.content?.replace(/[\r\n]+$/, '') || '';
       const attachments = message.attachments;
 
       // Send if there's text or attachments
       if (prompt.trim() || (attachments && attachments.length > 0)) {
-        // Handle /clear typed in chat (legacy support)
         const trimmedPrompt = prompt.trim();
+
+        // Handle /clear typed in chat (legacy support)
         if (trimmedPrompt === '/clear') {
           this.sdkSession.clearHistory();
           if (this.realtimeClient) {
