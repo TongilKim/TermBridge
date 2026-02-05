@@ -91,7 +91,7 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
     }
   }, [messages, isTyping]);
 
-  // Group consecutive messages of the same type
+  // Group consecutive messages of the same type (except system messages)
   const groupedMessages = useMemo(() => {
     const groups: GroupedMessage[] = [];
     let currentGroup: GroupedMessage | null = null;
@@ -104,8 +104,19 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
       const msgType = msg.type === 'input' ? 'input' :
                       msg.type === 'output' ? 'output' : 'system';
 
-      if (currentGroup && currentGroup.type === msgType) {
-        // Append to current group
+      // System messages should never be grouped - each one is a separate notification
+      if (msgType === 'system') {
+        if (currentGroup) {
+          groups.push(currentGroup);
+          currentGroup = null;
+        }
+        groups.push({
+          type: 'system',
+          content: msg.content || '',
+          timestamp: msg.timestamp,
+        });
+      } else if (currentGroup && currentGroup.type === msgType) {
+        // Append to current group (only for input/output)
         currentGroup.content += msg.content || '';
       } else {
         // Start new group
