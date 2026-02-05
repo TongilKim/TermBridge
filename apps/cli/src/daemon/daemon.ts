@@ -288,6 +288,24 @@ export class Daemon extends EventEmitter {
 
       // Send if there's text or attachments
       if (prompt.trim() || (attachments && attachments.length > 0)) {
+        // Handle special commands that don't produce output
+        const trimmedPrompt = prompt.trim();
+        if (trimmedPrompt === '/clear') {
+          // /clear clears conversation - send feedback to mobile
+          this.sdkSession.clearHistory();
+          if (this.realtimeClient) {
+            try {
+              await this.realtimeClient.broadcastSystem('Conversation cleared');
+            } catch {
+              // Silently handle broadcast errors
+            }
+          }
+          if (this.options.hybrid !== false) {
+            process.stdout.write('\n[Conversation cleared]\n> ');
+          }
+          return;
+        }
+
         await this.sdkSession.sendPrompt(prompt, attachments);
       }
     });
