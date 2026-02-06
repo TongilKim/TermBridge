@@ -11,6 +11,7 @@ import {
   Modal,
   SafeAreaView,
   TextInput,
+  Pressable,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
@@ -266,6 +267,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
   const isUser = message.type === 'input';
   const isSystem = message.type === 'system';
   const [showSelectModal, setShowSelectModal] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   // Clean up the content - remove excessive whitespace for user messages
   const rawContent = isUser
@@ -289,11 +291,19 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
   const handleCopy = useCallback(async () => {
     await Clipboard.setStringAsync(cleanContent);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowActionMenu(false);
   }, [cleanContent]);
 
   // Open modal for text selection
   const handleSelect = useCallback(() => {
+    setShowActionMenu(false);
     setShowSelectModal(true);
+  }, []);
+
+  // Long press handler to show action menu
+  const handleLongPress = useCallback(async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowActionMenu(true);
   }, []);
 
   if (isSystem) {
@@ -324,27 +334,29 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           </View>
         )}
 
-        {/* Message bubble */}
+        {/* Message bubble with long-press for copy options */}
         {cleanContent.trim() && (
-          <View
-            style={[
-              styles.bubble,
-              isUser
-                ? [styles.bubbleUser, isDark && styles.bubbleUserDark]
-                : [styles.bubbleClaude, isDark && styles.bubbleClaudeDark],
-            ]}
-          >
-            {isUser ? (
-              <Text style={styles.bubbleTextUser}>
-                {cleanContent}
-              </Text>
-            ) : (
-              <ClaudeMessage content={cleanContent} isDark={isDark} />
-            )}
-          </View>
+          <Pressable onLongPress={handleLongPress} delayLongPress={300}>
+            <View
+              style={[
+                styles.bubble,
+                isUser
+                  ? [styles.bubbleUser, isDark && styles.bubbleUserDark]
+                  : [styles.bubbleClaude, isDark && styles.bubbleClaudeDark],
+              ]}
+            >
+              {isUser ? (
+                <Text style={styles.bubbleTextUser}>
+                  {cleanContent}
+                </Text>
+              ) : (
+                <ClaudeMessage content={cleanContent} isDark={isDark} />
+              )}
+            </View>
+          </Pressable>
         )}
 
-        {/* Timestamp, copy button, and status */}
+        {/* Timestamp and status */}
         <View style={[styles.timestampRow, isUser && styles.timestampRowUser]}>
           <Text
             style={[
@@ -354,16 +366,6 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           >
             {isUser ? 'You' : 'Claude'} · {formattedTime}
           </Text>
-          <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
-            <Text style={[styles.copyButtonText, isDark && styles.copyButtonTextDark]}>
-              Copy
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSelect} style={styles.copyButton}>
-            <Text style={[styles.copyButtonText, isDark && styles.copyButtonTextDark]}>
-              Select text
-            </Text>
-          </TouchableOpacity>
           {isUser && (
             <Text style={[styles.statusIndicator, isDark && styles.statusIndicatorDark]}>
               ✓
@@ -372,6 +374,48 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
         </View>
       </View>
       {isUser && <UserAvatar />}
+
+      {/* Action menu modal (shown on long-press) */}
+      <Modal
+        visible={showActionMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActionMenu(false)}
+      >
+        <Pressable
+          style={styles.actionMenuOverlay}
+          onPress={() => setShowActionMenu(false)}
+        >
+          <View style={[styles.actionMenuContainer, isDark && styles.actionMenuContainerDark]}>
+            <TouchableOpacity
+              style={[styles.actionMenuItem, isDark && styles.actionMenuItemDark]}
+              onPress={handleCopy}
+            >
+              <Text style={[styles.actionMenuText, isDark && styles.actionMenuTextDark]}>
+                Copy All
+              </Text>
+            </TouchableOpacity>
+            <View style={[styles.actionMenuDivider, isDark && styles.actionMenuDividerDark]} />
+            <TouchableOpacity
+              style={[styles.actionMenuItem, isDark && styles.actionMenuItemDark]}
+              onPress={handleSelect}
+            >
+              <Text style={[styles.actionMenuText, isDark && styles.actionMenuTextDark]}>
+                Select Text
+              </Text>
+            </TouchableOpacity>
+            <View style={[styles.actionMenuDivider, isDark && styles.actionMenuDividerDark]} />
+            <TouchableOpacity
+              style={[styles.actionMenuItem, isDark && styles.actionMenuItemDark]}
+              onPress={() => setShowActionMenu(false)}
+            >
+              <Text style={[styles.actionMenuCancelText]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Text selection modal */}
       <Modal
@@ -856,17 +900,47 @@ const styles = StyleSheet.create({
   statusIndicatorDark: {
     color: '#4ade80',
   },
-  // Copy button
-  copyButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  // Action menu (long-press)
+  actionMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
   },
-  copyButtonText: {
-    fontSize: 11,
-    color: '#3b82f6',
+  actionMenuContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    width: '100%',
+    maxWidth: 300,
+    overflow: 'hidden',
   },
-  copyButtonTextDark: {
-    color: '#60a5fa',
+  actionMenuContainerDark: {
+    backgroundColor: '#2c2c2e',
+  },
+  actionMenuItem: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  actionMenuItemDark: {},
+  actionMenuText: {
+    fontSize: 17,
+    color: '#007aff',
+  },
+  actionMenuTextDark: {
+    color: '#0a84ff',
+  },
+  actionMenuCancelText: {
+    fontSize: 17,
+    color: '#ff3b30',
+    fontWeight: '600',
+  },
+  actionMenuDivider: {
+    height: 1,
+    backgroundColor: '#e5e5ea',
+  },
+  actionMenuDividerDark: {
+    backgroundColor: '#38383a',
   },
   // Text selection modal
   modalContainer: {
