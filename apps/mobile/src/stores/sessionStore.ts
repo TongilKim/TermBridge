@@ -251,18 +251,8 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         }));
       });
 
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // Initial state - check if CLI is already online
-          const state = channel.presenceState();
-          const isCliOnline = Object.values(state).some((presences) =>
-            (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
-          );
-          set((s) => ({
-            sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
-          }));
-        }
-      });
+      // Subscribe to presence channel - sync event handles state updates
+      channel.subscribe();
 
       presenceChannels.set(session.id, channel);
     }
