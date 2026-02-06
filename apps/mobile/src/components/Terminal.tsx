@@ -29,7 +29,7 @@ interface GroupedMessage {
 }
 
 // Avatar components using text-based icons
-function UserAvatar({ isDark }: { isDark: boolean }) {
+function UserAvatar() {
   return (
     <View style={[avatarStyles.avatar, avatarStyles.userAvatar]}>
       <Text style={avatarStyles.avatarText}>U</Text>
@@ -335,7 +335,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
             ]}
           >
             {isUser ? (
-              <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
+              <Text style={styles.bubbleTextUser}>
                 {cleanContent}
               </Text>
             ) : (
@@ -371,7 +371,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           )}
         </View>
       </View>
-      {isUser && <UserAvatar isDark={isDark} />}
+      {isUser && <UserAvatar />}
 
       {/* Text selection modal */}
       <Modal
@@ -532,14 +532,14 @@ function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
     return (
       <View key={node.key} style={codeBlockStyles.container}>
         <View style={[codeBlockStyles.header, isDark && codeBlockStyles.headerDark]}>
-          <Text style={[codeBlockStyles.language, isDark && codeBlockStyles.languageDark]}>
+          <Text style={codeBlockStyles.language}>
             {node.sourceInfo || 'code'}
           </Text>
           <TouchableOpacity
             onPress={() => copyToClipboard(codeContent)}
             style={codeBlockStyles.copyButton}
           >
-            <Text style={[codeBlockStyles.copyText, isDark && codeBlockStyles.copyTextDark]}>
+            <Text style={codeBlockStyles.copyText}>
               Copy
             </Text>
           </TouchableOpacity>
@@ -668,9 +668,6 @@ const codeBlockStyles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'monospace',
   },
-  languageDark: {
-    color: '#9ca3af',
-  },
   copyButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -680,9 +677,6 @@ const codeBlockStyles = StyleSheet.create({
   copyText: {
     color: '#9ca3af',
     fontSize: 12,
-  },
-  copyTextDark: {
-    color: '#9ca3af',
   },
   codeContainer: {
     backgroundColor: '#1f2937',
@@ -835,9 +829,6 @@ const styles = StyleSheet.create({
   bubbleTextUser: {
     fontSize: 15,
     lineHeight: 20,
-    color: '#ffffff',
-  },
-  bubbleTextUserDark: {
     color: '#ffffff',
   },
   // Timestamp row
