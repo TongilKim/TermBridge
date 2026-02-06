@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -8,6 +8,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
+  Modal,
+  SafeAreaView,
+  TextInput,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
@@ -262,6 +265,7 @@ interface MessageBubbleProps {
 function MessageBubble({ message, isDark }: MessageBubbleProps) {
   const isUser = message.type === 'input';
   const isSystem = message.type === 'system';
+  const [showSelectModal, setShowSelectModal] = useState(false);
 
   // Clean up the content - remove excessive whitespace for user messages
   const rawContent = isUser
@@ -280,6 +284,17 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
 
   // Format timestamp
   const formattedTime = formatTimestamp(message.timestamp);
+
+  // Copy full message to clipboard
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(cleanContent);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [cleanContent]);
+
+  // Open modal for text selection
+  const handleSelect = useCallback(() => {
+    setShowSelectModal(true);
+  }, []);
 
   if (isSystem) {
     return (
@@ -309,7 +324,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           </View>
         )}
 
-        {/* Message bubble */}
+        {/* Message bubble - selectable text for partial copy */}
         {cleanContent.trim() && (
           <View
             style={[
@@ -320,7 +335,10 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
             ]}
           >
             {isUser ? (
-              <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
+              <Text
+                selectable
+                style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}
+              >
                 {cleanContent}
               </Text>
             ) : (
@@ -329,7 +347,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           </View>
         )}
 
-        {/* Timestamp and status */}
+        {/* Timestamp, copy button, and status */}
         <View style={[styles.timestampRow, isUser && styles.timestampRowUser]}>
           <Text
             style={[
@@ -339,6 +357,16 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           >
             {isUser ? 'You' : 'Claude'} · {formattedTime}
           </Text>
+          <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
+            <Text style={[styles.copyButtonText, isDark && styles.copyButtonTextDark]}>
+              Copy
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleSelect} style={styles.copyButton}>
+            <Text style={[styles.copyButtonText, isDark && styles.copyButtonTextDark]}>
+              Select text
+            </Text>
+          </TouchableOpacity>
           {isUser && (
             <Text style={[styles.statusIndicator, isDark && styles.statusIndicatorDark]}>
               ✓
@@ -347,6 +375,52 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
         </View>
       </View>
       {isUser && <UserAvatar isDark={isDark} />}
+
+      {/* Text selection modal */}
+      <Modal
+        visible={showSelectModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSelectModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, isDark && styles.modalContainerDark]}>
+          <View style={[styles.modalHeader, isDark && styles.modalHeaderDark]}>
+            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+              Select Text
+            </Text>
+            <TouchableOpacity onPress={() => setShowSelectModal(false)}>
+              <Text style={[styles.modalClose, isDark && styles.modalCloseDark]}>Done</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalBody}>
+            <Text style={[styles.modalHint, isDark && styles.modalHintDark]}>
+              Tap and hold to select text, then copy
+            </Text>
+
+            <View style={[styles.textCard, isDark && styles.textCardDark]}>
+              <TextInput
+                style={[styles.selectableText, isDark && styles.selectableTextDark]}
+                value={cleanContent}
+                multiline
+                editable={false}
+                selectTextOnFocus
+                scrollEnabled
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.copyAllButton, isDark && styles.copyAllButtonDark]}
+              onPress={async () => {
+                await handleCopy();
+                setShowSelectModal(false);
+              }}
+            >
+              <Text style={styles.copyAllButtonText}>Copy All</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -477,7 +551,10 @@ function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
           </TouchableOpacity>
         </View>
         <View style={[codeBlockStyles.codeContainer, isDark && codeBlockStyles.codeContainerDark]}>
-          <Text style={[codeBlockStyles.code, isDark && codeBlockStyles.codeDark]}>
+          <Text
+            selectable
+            style={[codeBlockStyles.code, isDark && codeBlockStyles.codeDark]}
+          >
             {codeContent}
           </Text>
         </View>
@@ -796,6 +873,106 @@ const styles = StyleSheet.create({
   },
   statusIndicatorDark: {
     color: '#4ade80',
+  },
+  // Copy button
+  copyButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  copyButtonText: {
+    fontSize: 11,
+    color: '#3b82f6',
+  },
+  copyButtonTextDark: {
+    color: '#60a5fa',
+  },
+  // Text selection modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  modalContainerDark: {
+    backgroundColor: '#0a0a0a',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalHeaderDark: {
+    backgroundColor: '#1a1a1a',
+    borderBottomColor: '#333333',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  modalTitleDark: {
+    color: '#ffffff',
+  },
+  modalClose: {
+    fontSize: 17,
+    color: '#3b82f6',
+    fontWeight: '500',
+  },
+  modalCloseDark: {
+    color: '#60a5fa',
+  },
+  modalBody: {
+    flex: 1,
+    padding: 16,
+  },
+  modalHint: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalHintDark: {
+    color: '#9ca3af',
+  },
+  textCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 16,
+    padding: 16,
+  },
+  textCardDark: {
+    backgroundColor: '#1f1f1f',
+    borderColor: '#333333',
+  },
+  selectableText: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#1f2937',
+    textAlignVertical: 'top',
+  },
+  selectableTextDark: {
+    color: '#e5e5e5',
+  },
+  copyAllButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  copyAllButtonDark: {
+    backgroundColor: '#2563eb',
+  },
+  copyAllButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   // System message
   systemContainer: {
