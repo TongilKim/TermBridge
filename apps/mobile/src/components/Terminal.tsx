@@ -80,9 +80,21 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { messages, state, isTyping, isCliOnline } = useConnectionStore();
+  const { messages, state, isTyping, isCliOnline, registerScrollToBottom } = useConnectionStore();
 
-  // Auto-scroll to bottom when new messages arrive
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback(() => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  }, []);
+
+  // Register scroll function with the store so InputBar can trigger it
+  useEffect(() => {
+    registerScrollToBottom(scrollToBottom);
+  }, [registerScrollToBottom, scrollToBottom]);
+
+  // Auto-scroll to bottom when new messages arrive or typing state changes
   useEffect(() => {
     if (scrollViewRef.current) {
       setTimeout(() => {

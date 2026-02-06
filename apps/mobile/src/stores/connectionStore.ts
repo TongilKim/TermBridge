@@ -52,12 +52,17 @@ interface ConnectionStoreState {
   requestInteractiveCommand: (command: InteractiveCommandType) => Promise<void>;
   applyInteractiveChange: (payload: InteractiveApplyPayload) => Promise<void>;
   clearInteractive: () => void;
+
+  // Scroll callback for chat UI
+  registerScrollToBottom: (callback: () => void) => void;
+  scrollToBottom: () => void;
 }
 
 let outputChannel: RealtimeChannel | null = null;
 let inputChannel: RealtimeChannel | null = null;
 let presenceChannel: RealtimeChannel | null = null;
 let seq = 0;
+let scrollToBottomCallback: (() => void) | null = null;
 
 export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   state: 'disconnected',
@@ -352,6 +357,12 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       isTyping: true,
     }));
 
+    // Scroll to bottom after the message is rendered
+    // Use setTimeout to ensure React has time to render the new message
+    setTimeout(() => {
+      get().scrollToBottom();
+    }, 50);
+
     // Persist input message to database for history
     if (sessionId) {
       supabase.from('messages').insert({
@@ -563,4 +574,14 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     isInteractiveLoading: false,
     interactiveError: null,
   }),
+
+  registerScrollToBottom: (callback: () => void) => {
+    scrollToBottomCallback = callback;
+  },
+
+  scrollToBottom: () => {
+    if (scrollToBottomCallback) {
+      scrollToBottomCallback();
+    }
+  },
 }));
