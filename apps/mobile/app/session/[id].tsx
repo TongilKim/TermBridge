@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
+import { UserQuestionPicker } from '../../src/components/UserQuestionPicker';
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,7 +21,16 @@ export default function SessionScreen() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  const { connect, disconnect, state, requestModels, isCliOnline } = useConnectionStore();
+  const {
+    connect,
+    disconnect,
+    state,
+    requestModels,
+    isCliOnline,
+    pendingQuestion,
+    sendUserAnswer,
+    clearPendingQuestion,
+  } = useConnectionStore();
 
   // Compute effective status for badge display
   const effectiveStatus =
@@ -82,6 +92,14 @@ export default function SessionScreen() {
       <View style={{ paddingBottom: insets.bottom }}>
         <InputBar disabled={state !== 'connected' || isCliOnline === false} />
       </View>
+
+      {/* User Question Picker (for AskUserQuestion tool) */}
+      <UserQuestionPicker
+        visible={pendingQuestion !== null}
+        questionData={pendingQuestion}
+        onSubmit={sendUserAnswer}
+        onClose={clearPendingQuestion}
+      />
     </KeyboardAvoidingView>
   );
 }

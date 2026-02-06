@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query, SlashCommand as SDKSlashCommand } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment, ModelInfo, PermissionMode, SlashCommand } from 'termbridge-shared';
+import type { ImageAttachment, ModelInfo, PermissionMode, SlashCommand, UserQuestionData, UserQuestion } from 'termbridge-shared';
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -198,12 +198,30 @@ export class SdkSession extends EventEmitter {
             this.emit('commands-updated', this.cachedCommands);
           }
         } else if (message.type === 'assistant') {
-          // Assistant text output
+          // Assistant text output and tool use
           if (message.message?.content) {
             for (const block of message.message.content) {
               if ('type' in block && block.type === 'text' && 'text' in block) {
                 this.emit('output', block.text);
                 assistantResponse += block.text;
+              } else if ('type' in block && block.type === 'tool_use' && 'name' in block) {
+                // Check for AskUserQuestion tool
+                if (block.name === 'AskUserQuestion' && 'input' in block && 'id' in block) {
+                  const input = block.input as { questions?: Array<{ question: string; header: string; options: Array<{ label: string; description: string }>; multiSelect?: boolean }> };
+                  if (input.questions && Array.isArray(input.questions)) {
+                    const questions: UserQuestion[] = input.questions.map(q => ({
+                      question: q.question,
+                      header: q.header,
+                      options: q.options.map(o => ({ label: o.label, description: o.description })),
+                      multiSelect: q.multiSelect,
+                    }));
+                    const questionData: UserQuestionData = {
+                      toolUseId: block.id as string,
+                      questions,
+                    };
+                    this.emit('user-question', questionData);
+                  }
+                }
               }
             }
           }

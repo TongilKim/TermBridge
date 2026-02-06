@@ -5,7 +5,7 @@ import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { ConfigManager } from './config-manager.js';
 import { RealtimeClient } from '../realtime/client.js';
-import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from 'termbridge-shared';
+import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode, UserQuestionData } from 'termbridge-shared';
 
 export interface DaemonOptions {
   supabase: SupabaseClient;
@@ -135,6 +135,17 @@ export class Daemon extends EventEmitter {
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcastMode(mode);
+        } catch {
+          // Silently handle broadcast errors
+        }
+      }
+    });
+
+    // Wire up user questions to broadcast to mobile
+    this.sdkSession.on('user-question', async (questionData: UserQuestionData) => {
+      if (this.realtimeClient) {
+        try {
+          await this.realtimeClient.broadcastUserQuestion(questionData);
         } catch {
           // Silently handle broadcast errors
         }
@@ -294,6 +305,13 @@ export class Daemon extends EventEmitter {
         if (this.options.hybrid !== false) {
           process.stdout.write('\n[Conversation cleared]\n> ');
         }
+        return;
+      }
+
+      // Handle user answer (response to AskUserQuestion)
+      if (message.type === 'user-answer' && message.userAnswer) {
+        const answerText = Object.values(message.userAnswer.answers).join('\n');
+        await this.sdkSession.sendPrompt(answerText);
         return;
       }
 

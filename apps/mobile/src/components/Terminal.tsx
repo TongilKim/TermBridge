@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   TextInput,
   Pressable,
+  Keyboard,
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
@@ -106,6 +107,16 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
       }, 100);
     }
   }, [messages, isTyping]);
+
+  // Scroll to bottom when keyboard opens so latest messages stay visible
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Group consecutive messages of the same type (except system messages)
   const groupedMessages = useMemo(() => {

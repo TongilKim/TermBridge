@@ -37,7 +37,9 @@ export type RealtimeMessageType =
   | 'interactive-confirm'
   | 'clear-request' // Request to clear conversation (doesn't appear in chat)
   | 'resume-request' // Request to resume a different session (doesn't appear in chat)
-  | 'resume-history'; // Tells mobile to load messages from a previous session
+  | 'resume-history' // Tells mobile to load messages from a previous session
+  | 'user-question' // Claude is asking the user a question with options
+  | 'user-answer'; // User's answer to a question
 
 export type InteractiveCommandType =
   | 'config'
@@ -98,6 +100,8 @@ export interface RealtimeMessage {
   interactiveResult?: InteractiveResult;
   resumeSessionId?: string; // SDK session ID for resume-request
   historySessionId?: string; // Supabase session ID to load messages from (for resume-history)
+  userQuestion?: UserQuestionData; // For user-question type
+  userAnswer?: UserAnswerData; // For user-answer type
   timestamp: number;
   seq: number;
 }
@@ -118,4 +122,27 @@ export interface SlashCommand {
   name: string;
   description: string;
   argumentHint: string;
+}
+
+// User question types (for AskUserQuestion tool)
+export interface UserQuestionOption {
+  label: string;
+  description: string;
+}
+
+export interface UserQuestion {
+  question: string;
+  header: string;
+  options: UserQuestionOption[];
+  multiSelect?: boolean;
+}
+
+export interface UserQuestionData {
+  toolUseId: string;
+  questions: UserQuestion[];
+}
+
+export interface UserAnswerData {
+  toolUseId: string;
+  answers: Record<string, string>; // question index -> selected option label or custom text
 }

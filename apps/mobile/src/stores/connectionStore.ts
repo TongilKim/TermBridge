@@ -12,6 +12,8 @@ import type {
   InteractiveApplyPayload,
   InteractiveResult,
   PresencePayload,
+  UserQuestionData,
+  UserAnswerData,
 } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
@@ -36,6 +38,9 @@ interface ConnectionStoreState {
   isInteractiveLoading: boolean;
   interactiveError: string | null;
 
+  // User question state (from AskUserQuestion tool)
+  pendingQuestion: UserQuestionData | null;
+
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -53,6 +58,10 @@ interface ConnectionStoreState {
   requestInteractiveCommand: (command: InteractiveCommandType) => Promise<void>;
   applyInteractiveChange: (payload: InteractiveApplyPayload) => Promise<void>;
   clearInteractive: () => void;
+
+  // User question actions
+  sendUserAnswer: (answers: Record<string, string>) => Promise<void>;
+  clearPendingQuestion: () => void;
 
   // Scroll callback for chat UI
   registerScrollToBottom: (callback: () => void) => void;
@@ -81,6 +90,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   interactiveData: null,
   isInteractiveLoading: false,
   interactiveError: null,
+  pendingQuestion: null,
 
   connect: async (sessionId: string) => {
     try {
@@ -101,6 +111,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         interactiveData: null,
         isInteractiveLoading: false,
         interactiveError: null,
+        pendingQuestion: null,
       });
 
       // First check if the session is still active
@@ -203,6 +214,12 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
           } else {
             set({ interactiveData: null, interactiveError: null });
           }
+          return;
+        }
+
+        // Handle user question from AskUserQuestion tool
+        if (message.type === 'user-question' && message.userQuestion) {
+          set({ pendingQuestion: message.userQuestion, isTyping: false });
           return;
         }
 
@@ -575,6 +592,45 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
     isInteractiveLoading: false,
     interactiveError: null,
   }),
+
+  sendUserAnswer: async (answers: Record<string, string>) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const pendingQuestion = get().pendingQuestion;
+    if (!pendingQuestion) {
+      return;
+    }
+
+    const userAnswer: UserAnswerData = {
+      toolUseId: pendingQuestion.toolUseId,
+      answers,
+    };
+
+    const message: RealtimeMessage = {
+      type: 'user-answer',
+      userAnswer,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    // Clear the pending question
+    set({ pendingQuestion: null, isTyping: true });
+
+    try {
+      await inputChannel.send({
+        type: 'broadcast',
+        event: 'input',
+        payload: message,
+      });
+    } catch {
+      set({ error: 'Failed to send answer', isTyping: false });
+    }
+  },
+
+  clearPendingQuestion: () => set({ pendingQuestion: null }),
 
   registerScrollToBottom: (callback: () => void) => {
     scrollToBottomCallback = callback;
