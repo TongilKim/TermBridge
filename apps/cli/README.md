@@ -72,5 +72,3 @@ termbridge stop
 ## License
 
 MIT
-
-<!-- Test comment -->
