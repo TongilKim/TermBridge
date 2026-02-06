@@ -14,6 +14,8 @@ import {
   // Machine types
   type MachineStatus,
   type Machine,
+  // Presence types
+  type PresencePayload,
 } from '../index';
 
 describe('Message Types', () => {
@@ -386,6 +388,34 @@ describe('Machine Types', () => {
       };
       expect(fullMachine.hostname).toBe('macbook-pro.local');
       expect(fullMachine.last_seen_at).toBe('2024-01-01T00:30:00Z');
+    });
+  });
+});
+
+describe('Presence Types', () => {
+  describe('PresencePayload interface', () => {
+    it('should have type field for cli or mobile', () => {
+      const cliPresence: PresencePayload = {
+        type: 'cli',
+        online_at: '2024-01-01T00:00:00Z',
+      };
+
+      const mobilePresence: PresencePayload = {
+        type: 'mobile',
+        online_at: '2024-01-01T00:00:00Z',
+      };
+
+      expect(cliPresence.type).toBe('cli');
+      expect(mobilePresence.type).toBe('mobile');
+    });
+
+    it('should have online_at field', () => {
+      const presence: PresencePayload = {
+        type: 'cli',
+        online_at: '2024-01-01T00:00:00Z',
+      };
+
+      expect(presence.online_at).toBe('2024-01-01T00:00:00Z');
     });
   });
 });
