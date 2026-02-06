@@ -324,7 +324,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
           </View>
         )}
 
-        {/* Message bubble - selectable text for partial copy */}
+        {/* Message bubble */}
         {cleanContent.trim() && (
           <View
             style={[
@@ -335,10 +335,7 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
             ]}
           >
             {isUser ? (
-              <Text
-                selectable
-                style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}
-              >
+              <Text style={[styles.bubbleTextUser, isDark && styles.bubbleTextUserDark]}>
                 {cleanContent}
               </Text>
             ) : (
@@ -435,9 +432,6 @@ function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await Clipboard.setStringAsync(text);
   }, []);
-
-  // Check if content contains code blocks
-  const hasCodeBlock = content.includes('```');
 
   // Markdown styles
   const markdownStyles = useMemo(() => ({
@@ -551,10 +545,7 @@ function ClaudeMessage({ content, isDark }: ClaudeMessageProps) {
           </TouchableOpacity>
         </View>
         <View style={[codeBlockStyles.codeContainer, isDark && codeBlockStyles.codeContainerDark]}>
-          <Text
-            selectable
-            style={[codeBlockStyles.code, isDark && codeBlockStyles.codeDark]}
-          >
+          <Text style={[codeBlockStyles.code, isDark && codeBlockStyles.codeDark]}>
             {codeContent}
           </Text>
         </View>
