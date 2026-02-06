@@ -13,7 +13,6 @@ interface ClaudeSettings {
   preferences?: {
     verboseMode?: boolean;
     theme?: string;
-    notifications?: boolean;
     autoCompact?: boolean;
   };
   permissions?: {
@@ -164,13 +163,6 @@ export class ConfigManager {
         description: 'Show detailed output during operations',
         value: settings.preferences?.verboseMode || false,
         selected: settings.preferences?.verboseMode || false,
-      },
-      {
-        id: 'notifications',
-        label: 'Notifications',
-        description: 'Enable desktop notifications',
-        value: settings.preferences?.notifications ?? true,
-        selected: settings.preferences?.notifications ?? true,
       },
     ];
 
@@ -326,9 +318,6 @@ export class ConfigManager {
         break;
       case 'verbose':
         settings.preferences.verboseMode = payload.value as boolean;
-        break;
-      case 'notifications':
-        settings.preferences.notifications = payload.value as boolean;
         break;
       default:
         return { success: false, message: `Unknown config key: ${payload.key}` };

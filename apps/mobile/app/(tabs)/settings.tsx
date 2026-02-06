@@ -1,34 +1,20 @@
-import { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  Switch,
   Alert,
   ScrollView,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../../src/stores/authStore';
-import {
-  registerForPushNotifications,
-  savePushToken,
-  removePushToken,
-} from '../../src/services/notifications';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   const { user, signOut, isLoading } = useAuthStore();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [pushToken, setPushToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check current notification status
-    // This would need actual implementation to check stored token
-  }, []);
 
   const handleLogout = () => {
     Alert.alert(
@@ -40,36 +26,11 @@ export default function SettingsScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            if (pushToken) {
-              await removePushToken(pushToken);
-            }
             await signOut();
           },
         },
       ]
     );
-  };
-
-  const toggleNotifications = async (enabled: boolean) => {
-    if (enabled) {
-      const token = await registerForPushNotifications();
-      if (token && user) {
-        await savePushToken(user.id, token);
-        setPushToken(token);
-        setNotificationsEnabled(true);
-      } else {
-        Alert.alert(
-          'Notifications',
-          'Unable to enable push notifications. Please check your device settings.'
-        );
-      }
-    } else {
-      if (pushToken) {
-        await removePushToken(pushToken);
-        setPushToken(null);
-      }
-      setNotificationsEnabled(false);
-    }
   };
 
   const appVersion = Constants.expoConfig?.version || '0.1.0';
@@ -90,31 +51,6 @@ export default function SettingsScreen() {
             <Text style={[styles.value, isDark && styles.valueDark]}>
               {user?.email || 'Not signed in'}
             </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Notifications Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-          Notifications
-        </Text>
-        <View style={[styles.card, isDark && styles.cardDark]}>
-          <View style={styles.rowWithSwitch}>
-            <View style={styles.switchLabelContainer}>
-              <Text style={[styles.label, isDark && styles.labelDark]}>
-                Push Notifications
-              </Text>
-              <Text style={[styles.hint, isDark && styles.hintDark]}>
-                Get notified about task completions and errors
-              </Text>
-            </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={toggleNotifications}
-              trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-              thumbColor={notificationsEnabled ? '#3b82f6' : '#f4f3f4'}
-            />
           </View>
         </View>
       </View>
@@ -189,16 +125,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  rowWithSwitch: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-  },
-  switchLabelContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
   label: {
     fontSize: 16,
     color: '#1f2937',
@@ -212,14 +138,6 @@ const styles = StyleSheet.create({
   },
   valueDark: {
     color: '#9ca3af',
-  },
-  hint: {
-    fontSize: 13,
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  hintDark: {
-    color: '#6b7280',
   },
   logoutButton: {
     backgroundColor: '#ef4444',
