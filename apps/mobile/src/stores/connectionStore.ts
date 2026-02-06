@@ -11,6 +11,7 @@ import type {
   InteractiveCommandData,
   InteractiveApplyPayload,
   InteractiveResult,
+  PresencePayload,
 } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
@@ -277,23 +278,23 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
           const state = presenceChannel!.presenceState();
           // Check if any CLI is present
           const isCliOnline = Object.values(state).some((presences) =>
-            (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
+            (presences as PresencePayload[]).some((p) => p.type === 'cli')
           );
           set({ isCliOnline });
         })
         .on('presence', { event: 'join' }, ({ newPresences }) => {
-          const cliJoined = newPresences.some((p: { type?: string }) => p.type === 'cli');
+          const cliJoined = (newPresences as PresencePayload[]).some((p) => p.type === 'cli');
           if (cliJoined) {
             set({ isCliOnline: true });
           }
         })
         .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-          const cliLeft = leftPresences.some((p: { type?: string }) => p.type === 'cli');
+          const cliLeft = (leftPresences as PresencePayload[]).some((p) => p.type === 'cli');
           if (cliLeft) {
             // Check if any CLI is still present
             const state = presenceChannel!.presenceState();
             const isCliOnline = Object.values(state).some((presences) =>
-              (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
+              (presences as PresencePayload[]).some((p) => p.type === 'cli')
             );
             set({ isCliOnline });
           }

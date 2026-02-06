@@ -8,6 +8,7 @@ import type {
   InteractiveCommandData,
   InteractiveCommandType,
   InteractiveResult,
+  PresencePayload,
 } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
@@ -104,12 +105,21 @@ export class RealtimeClient extends EventEmitter {
       this.presenceChannel = this.supabase.channel(presenceChannelName);
 
       // Subscribe and track presence - re-track on every SUBSCRIBED (handles reconnection)
-      this.presenceChannel.subscribe(async (status) => {
+      this.presenceChannel.subscribe(async (status, err) => {
         if (status === 'SUBSCRIBED' && this.presenceChannel) {
-          await this.presenceChannel.track({
-            type: 'cli',
-            online_at: new Date().toISOString(),
-          });
+          try {
+            const payload: PresencePayload = {
+              type: 'cli',
+              online_at: new Date().toISOString(),
+            };
+            await this.presenceChannel.track(payload);
+          } catch (trackError) {
+            // Presence tracking is non-critical - log and continue
+            console.warn('[WARN] Failed to track presence:', trackError);
+          }
+        } else if (status === 'CHANNEL_ERROR') {
+          // Presence is non-critical - log and continue
+          console.warn('[WARN] Presence channel error:', err?.message || 'Unknown error');
         }
       });
     }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import type { Session } from 'termbridge-shared';
+import type { Session, PresencePayload } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -241,17 +241,39 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       const channelName = REALTIME_CHANNELS.sessionPresence(session.id);
       const channel = supabase.channel(channelName);
 
-      channel.on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const isCliOnline = Object.values(state).some((presences) =>
-          (presences as Array<{ type?: string }>).some((p) => p.type === 'cli')
-        );
-        set((s) => ({
-          sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
-        }));
-      });
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          const isCliOnline = Object.values(state).some((presences) =>
+            (presences as PresencePayload[]).some((p) => p.type === 'cli')
+          );
+          set((s) => ({
+            sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
+          }));
+        })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          const cliJoined = (newPresences as PresencePayload[]).some((p) => p.type === 'cli');
+          if (cliJoined) {
+            set((s) => ({
+              sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: true },
+            }));
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+          const cliLeft = (leftPresences as PresencePayload[]).some((p) => p.type === 'cli');
+          if (cliLeft) {
+            // Re-check if any CLI is still present
+            const state = channel.presenceState();
+            const isCliOnline = Object.values(state).some((presences) =>
+              (presences as PresencePayload[]).some((p) => p.type === 'cli')
+            );
+            set((s) => ({
+              sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
+            }));
+          }
+        });
 
-      // Subscribe to presence channel - sync event handles state updates
+      // Subscribe to presence channel - event handlers above update state
       channel.subscribe();
 
       presenceChannels.set(session.id, channel);
