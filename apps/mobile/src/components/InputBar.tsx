@@ -73,6 +73,14 @@ export function InputBar({ disabled }: InputBarProps) {
   } = useConnectionStore();
   const isDisabled = disabled || state !== 'connected' || isSending || isTyping;
 
+  // Placeholder text based on connection state (not typing/sending state)
+  const placeholderText =
+    state !== 'connected'
+      ? 'Session disconnected'
+      : disabled
+        ? 'CLI offline'
+        : 'Message Claude...';
+
   const handleSend = async () => {
     if (!input.trim() || isDisabled || isSending) {
       return;
@@ -246,7 +254,7 @@ export function InputBar({ disabled }: InputBarProps) {
           ]}
           value={input}
           onChangeText={setInput}
-          placeholder={isDisabled ? 'Session disconnected' : 'Message Claude...'}
+          placeholder={placeholderText}
           placeholderTextColor={isDark ? '#6b7280' : '#9ca3af'}
           editable={!isDisabled}
           onSubmitEditing={handleSend}
