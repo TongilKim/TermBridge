@@ -1,5 +1,9 @@
 # TermBridge - Project Context
 
+## Workflow Rules
+
+- **Do not commit unless I confirm it** - Always wait for explicit user confirmation before creating any git commits.
+
 ## Overview
 
 TermBridge is a CLI tool for remote monitoring and control of Claude Code sessions. It connects to Supabase for real-time communication.
