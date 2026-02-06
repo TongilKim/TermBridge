@@ -103,11 +103,6 @@ export class RealtimeClient extends EventEmitter {
       const presenceChannelName = REALTIME_CHANNELS.sessionPresence(this.sessionId);
       this.presenceChannel = this.supabase.channel(presenceChannelName);
 
-      // Set up presence sync handler before subscribing
-      this.presenceChannel.on('presence', { event: 'sync' }, () => {
-        // Presence state synced
-      });
-
       // Subscribe and track presence - re-track on every SUBSCRIBED (handles reconnection)
       this.presenceChannel.subscribe(async (status) => {
         if (status === 'SUBSCRIBED' && this.presenceChannel) {

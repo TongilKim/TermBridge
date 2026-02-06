@@ -6,7 +6,6 @@ import { MachineManager } from './machine.js';
 import { ConfigManager } from './config-manager.js';
 import { RealtimeClient } from '../realtime/client.js';
 import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode } from 'termbridge-shared';
-import { NOTIFICATION_TYPES } from 'termbridge-shared';
 
 export interface DaemonOptions {
   supabase: SupabaseClient;
@@ -96,9 +95,6 @@ export class Daemon extends EventEmitter {
           // Silently handle broadcast errors
         }
       }
-
-      // Check for notification triggers
-      this.checkNotificationTriggers(data);
     });
 
     this.sdkSession.on('error', (error: Error) => {
@@ -466,47 +462,6 @@ export class Daemon extends EventEmitter {
       await this.realtimeClient.broadcastModels(models);
     } catch {
       // Silently handle broadcast errors
-    }
-  }
-
-  private checkNotificationTriggers(output: string): void {
-    const lowerOutput = output.toLowerCase();
-
-    // Check for task completion indicators
-    if (
-      lowerOutput.includes('task complete') ||
-      lowerOutput.includes('done') ||
-      lowerOutput.includes('finished')
-    ) {
-      this.emit('notification', {
-        type: NOTIFICATION_TYPES.TASK_COMPLETE,
-        message: 'Task completed',
-      });
-    }
-
-    // Check for error indicators
-    if (
-      lowerOutput.includes('error') ||
-      lowerOutput.includes('failed') ||
-      lowerOutput.includes('exception')
-    ) {
-      this.emit('notification', {
-        type: NOTIFICATION_TYPES.ERROR,
-        message: 'Error detected',
-      });
-    }
-
-    // Check for input required indicators
-    if (
-      lowerOutput.includes('y/n') ||
-      lowerOutput.includes('[y/n]') ||
-      lowerOutput.includes('press enter') ||
-      lowerOutput.includes('continue?')
-    ) {
-      this.emit('notification', {
-        type: NOTIFICATION_TYPES.INPUT_REQUIRED,
-        message: 'Input required',
-      });
     }
   }
 }
