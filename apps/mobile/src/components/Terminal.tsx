@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
-  SafeAreaView,
   TextInput,
   Pressable,
   Keyboard,
@@ -428,29 +427,32 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
         </Pressable>
       </Modal>
 
-      {/* Text selection modal */}
+      {/* Text selection modal (bottom sheet) */}
       <Modal
         visible={showSelectModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
         onRequestClose={() => setShowSelectModal(false)}
       >
-        <SafeAreaView style={[styles.modalContainer, isDark && styles.modalContainerDark]}>
-          <View style={[styles.modalHeader, isDark && styles.modalHeaderDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+        <View style={styles.selectOverlay}>
+          <View style={styles.selectBackdrop} />
+          <View
+            style={[
+              styles.selectSheet,
+              isDark && styles.selectSheetDark,
+            ]}
+          >
+            <View style={styles.selectHandle} />
+
+            <Text style={[styles.selectTitle, isDark && styles.selectTitleDark]}>
               Select Text
             </Text>
-            <TouchableOpacity onPress={() => setShowSelectModal(false)}>
-              <Text style={[styles.modalClose, isDark && styles.modalCloseDark]}>Done</Text>
-            </TouchableOpacity>
-          </View>
 
-          <View style={styles.modalBody}>
-            <Text style={[styles.modalHint, isDark && styles.modalHintDark]}>
+            <Text style={[styles.selectHint, isDark && styles.selectHintDark]}>
               Tap and hold to select text, then copy
             </Text>
 
-            <View style={[styles.textCard, isDark && styles.textCardDark]}>
+            <View style={[styles.selectTextCard, isDark && styles.selectTextCardDark]}>
               <TextInput
                 style={[styles.selectableText, isDark && styles.selectableTextDark]}
                 value={cleanContent}
@@ -462,16 +464,25 @@ function MessageBubble({ message, isDark }: MessageBubbleProps) {
             </View>
 
             <TouchableOpacity
-              style={[styles.copyAllButton, isDark && styles.copyAllButtonDark]}
+              style={[styles.selectCopyButton, isDark && styles.selectCopyButtonDark]}
               onPress={async () => {
                 await handleCopy();
                 setShowSelectModal(false);
               }}
             >
-              <Text style={styles.copyAllButtonText}>Copy All</Text>
+              <Text style={styles.selectCopyButtonText}>Copy All</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.selectCloseButton, isDark && styles.selectCloseButtonDark]}
+              onPress={() => setShowSelectModal(false)}
+            >
+              <Text style={[styles.selectCloseText, isDark && styles.selectCloseTextDark]}>
+                Done
+              </Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );
@@ -953,93 +964,107 @@ const styles = StyleSheet.create({
   actionMenuDividerDark: {
     backgroundColor: '#38383a',
   },
-  // Text selection modal
-  modalContainer: {
+  // Text selection bottom sheet
+  selectOverlay: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    justifyContent: 'flex-end',
   },
-  modalContainerDark: {
-    backgroundColor: '#0a0a0a',
+  selectBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  selectSheet: {
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+    maxHeight: '85%',
   },
-  modalHeaderDark: {
-    backgroundColor: '#1a1a1a',
-    borderBottomColor: '#333333',
+  selectSheetDark: {
+    backgroundColor: '#1f1f1f',
   },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  modalTitleDark: {
-    color: '#ffffff',
-  },
-  modalClose: {
-    fontSize: 17,
-    color: '#3b82f6',
-    fontWeight: '500',
-  },
-  modalCloseDark: {
-    color: '#60a5fa',
-  },
-  modalBody: {
-    flex: 1,
-    padding: 16,
-  },
-  modalHint: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+  selectHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#d1d5db',
+    alignSelf: 'center',
     marginBottom: 16,
   },
-  modalHintDark: {
+  selectTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  selectTitleDark: {
+    color: '#f9fafb',
+  },
+  selectHint: {
+    fontSize: 13,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  selectHintDark: {
     color: '#9ca3af',
   },
-  textCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
+  selectTextCard: {
+    maxHeight: 300,
+    backgroundColor: '#f9fafb',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    padding: 14,
     marginBottom: 16,
-    padding: 16,
   },
-  textCardDark: {
-    backgroundColor: '#1f1f1f',
-    borderColor: '#333333',
+  selectTextCardDark: {
+    backgroundColor: '#2d2d2d',
+    borderColor: '#4b5563',
   },
   selectableText: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: '#1f2937',
     textAlignVertical: 'top',
   },
   selectableTextDark: {
     color: '#e5e5e5',
   },
-  copyAllButton: {
+  selectCopyButton: {
     backgroundColor: '#3b82f6',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  copyAllButtonDark: {
+  selectCopyButtonDark: {
     backgroundColor: '#2563eb',
   },
-  copyAllButtonText: {
+  selectCopyButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  selectCloseButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+  },
+  selectCloseButtonDark: {
+    backgroundColor: '#374151',
+  },
+  selectCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  selectCloseTextDark: {
+    color: '#d1d5db',
   },
   // System message
   systemContainer: {
