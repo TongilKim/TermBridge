@@ -219,3 +219,19 @@ export interface PermissionResponseData {
   updatedInput?: Record<string, unknown>; // For allow - modified input
   updatedPermissions?: PermissionUpdate[]; // For allow - permission updates
 }
+
+// Machine-level command types (for listen mode)
+export type MachineCommandType =
+  | 'start-session'
+  | 'session-started'
+  | 'session-ended'
+  | 'start-session-error'
+  | 'stop-session';
+
+export interface MachineCommand {
+  type: MachineCommandType;
+  sessionId?: string;
+  workingDirectory?: string;
+  error?: string;
+  timestamp: number;
+}

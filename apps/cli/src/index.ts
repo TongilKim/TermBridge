@@ -34,6 +34,7 @@ import { createStopCommand } from './commands/stop.js';
 import { createStatusCommand } from './commands/status.js';
 import { createLoginCommand } from './commands/login.js';
 import { createSetupCommand } from './commands/setup.js';
+import { createListenCommand } from './commands/listen.js';
 
 const program = new Command();
 
@@ -44,6 +45,7 @@ program
 
 program.addCommand(createSetupCommand());
 program.addCommand(createStartCommand());
+program.addCommand(createListenCommand());
 program.addCommand(createStopCommand());
 program.addCommand(createStatusCommand());
 program.addCommand(createLoginCommand());

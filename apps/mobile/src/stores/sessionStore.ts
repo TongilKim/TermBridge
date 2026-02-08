@@ -1,19 +1,24 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
-import type { Session, PresencePayload } from 'termbridge-shared';
+import type { Session, Machine, PresencePayload, MachineCommand } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface SessionStoreState {
   sessions: Session[];
+  machines: Machine[];
   isLoading: boolean;
   error: string | null;
   pendingSessionId: string | null; // Session being disconnected/deleted
   openSwipeableId: string | null; // Currently open swipeable session
   sessionOnlineStatus: Record<string, boolean>; // sessionId -> isCliOnline
+  machineOnlineStatus: Record<string, boolean>; // machineId -> isListenerOnline
+  isStartingSession: string | null; // machineId being started
+  startSessionError: string | null;
 
   // Actions
   fetchSessions: (silent?: boolean) => Promise<void>;
+  fetchMachines: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   endSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
@@ -23,18 +28,26 @@ interface SessionStoreState {
   setOpenSwipeableId: (id: string | null) => void;
   subscribeToPresence: () => void;
   unsubscribeFromPresence: () => void;
+  subscribeMachinePresence: () => void;
+  unsubscribeMachinePresence: () => void;
+  startSessionOnMachine: (machineId: string, onSuccess: (sessionId: string) => void) => void;
 }
 
 // Keep track of presence channels outside the store
 const presenceChannels: Map<string, RealtimeChannel> = new Map();
+const machinePresenceChannels: Map<string, RealtimeChannel> = new Map();
 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({
   sessions: [],
+  machines: [],
   isLoading: false,
   error: null,
   pendingSessionId: null,
   openSwipeableId: null,
   sessionOnlineStatus: {},
+  machineOnlineStatus: {},
+  isStartingSession: null,
+  startSessionError: null,
 
   fetchSessions: async (silent = false) => {
     // Prevent duplicate fetches
@@ -71,6 +84,21 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to fetch sessions',
         isLoading: false,
       });
+    }
+  },
+
+  fetchMachines: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('machines')
+        .select('*')
+        .order('last_seen_at', { ascending: false });
+
+      if (error) throw error;
+
+      set({ machines: (data as Machine[]) || [] });
+    } catch {
+      // Non-critical - machines are also loaded via sessions
     }
   },
 
@@ -281,10 +309,156 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   unsubscribeFromPresence: () => {
-    for (const [sessionId, channel] of presenceChannels) {
+    for (const [, channel] of presenceChannels) {
       supabase.removeChannel(channel);
     }
     presenceChannels.clear();
     set({ sessionOnlineStatus: {} });
+  },
+
+  subscribeMachinePresence: () => {
+    const { machines } = get();
+
+    // Also collect unique machine IDs from sessions (for machines that have sessions)
+    const { sessions } = get();
+    const machineIds = new Set<string>();
+    for (const machine of machines) {
+      machineIds.add(machine.id);
+    }
+    for (const session of sessions) {
+      if (session.machine_id) {
+        machineIds.add(session.machine_id);
+      }
+    }
+
+    // Unsubscribe from machines no longer relevant
+    for (const [machineId, channel] of machinePresenceChannels) {
+      if (!machineIds.has(machineId)) {
+        supabase.removeChannel(channel);
+        machinePresenceChannels.delete(machineId);
+      }
+    }
+
+    // Subscribe to presence for each machine
+    for (const machineId of machineIds) {
+      if (machinePresenceChannels.has(machineId)) continue;
+
+      const channelName = REALTIME_CHANNELS.machinePresence(machineId);
+      const channel = supabase.channel(channelName);
+
+      channel
+        .on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          const isListenerOnline = Object.values(state).some((presences) =>
+            (presences as PresencePayload[]).some((p) => p.type === 'cli')
+          );
+          set((s) => ({
+            machineOnlineStatus: { ...s.machineOnlineStatus, [machineId]: isListenerOnline },
+          }));
+        })
+        .on('presence', { event: 'join' }, ({ newPresences }) => {
+          const cliJoined = (newPresences as PresencePayload[]).some((p) => p.type === 'cli');
+          if (cliJoined) {
+            set((s) => ({
+              machineOnlineStatus: { ...s.machineOnlineStatus, [machineId]: true },
+            }));
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+          const cliLeft = (leftPresences as PresencePayload[]).some((p) => p.type === 'cli');
+          if (cliLeft) {
+            const state = channel.presenceState();
+            const isListenerOnline = Object.values(state).some((presences) =>
+              (presences as PresencePayload[]).some((p) => p.type === 'cli')
+            );
+            set((s) => ({
+              machineOnlineStatus: { ...s.machineOnlineStatus, [machineId]: isListenerOnline },
+            }));
+          }
+        });
+
+      channel.subscribe();
+      machinePresenceChannels.set(machineId, channel);
+    }
+  },
+
+  unsubscribeMachinePresence: () => {
+    for (const [, channel] of machinePresenceChannels) {
+      supabase.removeChannel(channel);
+    }
+    machinePresenceChannels.clear();
+    set({ machineOnlineStatus: {} });
+  },
+
+  startSessionOnMachine: (machineId: string, onSuccess: (sessionId: string) => void) => {
+    set({ isStartingSession: machineId, startSessionError: null });
+
+    const inputChannelName = REALTIME_CHANNELS.machineInput(machineId);
+    const outputChannelName = REALTIME_CHANNELS.machineOutput(machineId);
+
+    const inputChannel = supabase.channel(inputChannelName);
+    const outputChannel = supabase.channel(outputChannelName);
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      supabase.removeChannel(inputChannel);
+      supabase.removeChannel(outputChannel);
+    };
+
+    // Listen for response on output channel
+    outputChannel.on('broadcast', { event: 'machine-command' }, (payload) => {
+      const cmd = payload.payload as MachineCommand;
+
+      if (cmd.type === 'session-started' && cmd.sessionId) {
+        cleanup();
+        set({ isStartingSession: null, startSessionError: null });
+
+        // Refresh sessions so the new session appears in the list
+        get().fetchSessions(true).then(() => {
+          get().subscribeToPresence();
+        });
+
+        onSuccess(cmd.sessionId);
+      }
+
+      if (cmd.type === 'start-session-error') {
+        cleanup();
+        set({
+          isStartingSession: null,
+          startSessionError: cmd.error || 'Failed to start session',
+        });
+      }
+    });
+
+    // Subscribe to output channel first, then send command on input channel
+    outputChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        inputChannel.subscribe((inputStatus) => {
+          if (inputStatus === 'SUBSCRIBED') {
+            const command: MachineCommand = {
+              type: 'start-session',
+              timestamp: Date.now(),
+            };
+
+            inputChannel.send({
+              type: 'broadcast',
+              event: 'machine-command',
+              payload: command,
+            });
+          }
+        });
+      }
+    });
+
+    // Timeout after 15 seconds
+    timeoutId = setTimeout(() => {
+      cleanup();
+      set({
+        isStartingSession: null,
+        startSessionError: 'Timed out waiting for session to start.',
+      });
+    }, 15000);
   },
 }));

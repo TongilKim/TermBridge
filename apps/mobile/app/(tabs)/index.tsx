@@ -12,7 +12,7 @@ import {
   Pressable,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSessionStore } from '../../src/stores/sessionStore';
 import { SessionCard } from '../../src/components/SessionCard';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -24,42 +24,86 @@ interface MachineSection {
   data: any[];
   onlineCount: number;
   offlineCount: number;
+  hasListener: boolean;
 }
 
 export default function SessionsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const router = useRouter();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const { sessions, isLoading, fetchSessions, refreshSessions, deleteEndedSessionsForMachine, setOpenSwipeableId, subscribeToPresence, unsubscribeFromPresence, sessionOnlineStatus } =
-    useSessionStore();
+  const {
+    sessions,
+    machines,
+    isLoading,
+    fetchSessions,
+    fetchMachines,
+    refreshSessions,
+    deleteEndedSessionsForMachine,
+    setOpenSwipeableId,
+    subscribeToPresence,
+    subscribeMachinePresence,
+    sessionOnlineStatus,
+    machineOnlineStatus,
+    isStartingSession,
+    startSessionError,
+    startSessionOnMachine,
+  } = useSessionStore();
 
   // Refresh sessions silently and subscribe to presence whenever the screen gains focus
   useFocusEffect(
     useCallback(() => {
+      fetchMachines();
       fetchSessions(true).then(() => {
         subscribeToPresence();
+        subscribeMachinePresence();
       });
-    }, [fetchSessions, subscribeToPresence])
+    }, [fetchSessions, fetchMachines, subscribeToPresence, subscribeMachinePresence])
   );
 
-  // Also subscribe when sessions change
+  // Also subscribe when sessions or machines change
   useEffect(() => {
-    if (sessions.length > 0) {
+    if (sessions.length > 0 || machines.length > 0) {
       subscribeToPresence();
+      subscribeMachinePresence();
     }
-  }, [sessions, subscribeToPresence]);
+  }, [sessions, machines, subscribeToPresence, subscribeMachinePresence]);
+
+  // Show error alert when startSessionError changes
+  useEffect(() => {
+    if (startSessionError) {
+      Alert.alert('Failed to Start Session', startSessionError);
+    }
+  }, [startSessionError]);
 
   const onRefresh = useCallback(() => {
+    fetchMachines();
     refreshSessions();
-  }, []);
+  }, [fetchMachines, refreshSessions]);
 
-  // Group sessions by machine
+  // Group sessions by machine, including machines with no sessions
   const sections: MachineSection[] = useMemo(() => {
     const machineMap = new Map<string, MachineSection>();
 
+    // First, add machines from the machines list (includes those with no sessions)
+    for (const machine of machines) {
+      if (!machineMap.has(machine.id)) {
+        machineMap.set(machine.id, {
+          id: machine.id,
+          title: machine.name,
+          hostname: machine.hostname,
+          data: [],
+          onlineCount: 0,
+          offlineCount: 0,
+          hasListener: !!machineOnlineStatus[machine.id],
+        });
+      }
+    }
+
+    // Then add sessions
     sessions.forEach((session: any) => {
-      const machineId = session.machines?.id || 'unknown';
+      const machineId = session.machines?.id || session.machine_id || 'unknown';
       const machineName = session.machines?.name || 'Unknown Machine';
       const hostname = session.machines?.hostname;
 
@@ -71,6 +115,7 @@ export default function SessionsScreen() {
           data: [],
           onlineCount: 0,
           offlineCount: 0,
+          hasListener: !!machineOnlineStatus[machineId],
         });
       }
 
@@ -85,7 +130,7 @@ export default function SessionsScreen() {
     });
 
     return Array.from(machineMap.values());
-  }, [sessions, sessionOnlineStatus]);
+  }, [sessions, machines, sessionOnlineStatus, machineOnlineStatus]);
 
   // Calculate total session counts based on presence status
   const sessionCounts = useMemo(() => {
@@ -108,6 +153,13 @@ export default function SessionsScreen() {
       ]
     );
   }, [deleteEndedSessionsForMachine]);
+
+  const onStartSession = useCallback((machineId: string) => {
+    if (isStartingSession) return;
+    startSessionOnMachine(machineId, (sessionId: string) => {
+      router.push(`/session/${sessionId}`);
+    });
+  }, [isStartingSession, startSessionOnMachine, router]);
 
   const toggleSection = (sectionId: string) => {
     // Close any open swipeable
@@ -132,7 +184,7 @@ export default function SessionsScreen() {
     );
   }
 
-  if (sessions.length === 0) {
+  if (sessions.length === 0 && sections.length === 0) {
     return (
       <ScrollView
         style={[styles.container, isDark && styles.containerDark]}
@@ -147,7 +199,7 @@ export default function SessionsScreen() {
       >
         <EmptyState
           title="No Sessions"
-          message="Start a Claude Code session on your computer using 'termbridge start' to see it here. Pull down to refresh."
+          message="Start a Claude Code session using 'termbridge start' or run 'termbridge listen' to start sessions from this app. Pull down to refresh."
           icon="💻"
         />
       </ScrollView>
@@ -208,57 +260,77 @@ export default function SessionsScreen() {
         renderItem={({ item, section }) =>
           collapsedSections.has(section.id) ? null : <SessionCard session={item} />
         }
-        renderSectionHeader={({ section }) => (
-          <TouchableOpacity
-            style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}
-            onPress={() => toggleSection(section.id)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <Text style={[styles.sectionChevron, isDark && styles.sectionChevronDark]}>
-                {collapsedSections.has(section.id) ? '▶' : '▼'}
-              </Text>
-              <View>
-                <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-                  {section.title}
-                </Text>
-                {section.hostname && (
-                  <Text style={[styles.sectionHostname, isDark && styles.sectionHostnameDark]}>
-                    {section.hostname}
+        renderSectionHeader={({ section }) => {
+          const showAdd = section.hasListener && isStartingSession !== section.id;
+          const isStarting = isStartingSession === section.id;
+
+          return (
+            <View>
+              <TouchableOpacity
+                style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}
+                onPress={() => toggleSection(section.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.sectionHeaderLeft}>
+                  <Text style={[styles.sectionChevron, isDark && styles.sectionChevronDark]}>
+                    {collapsedSections.has(section.id) ? '▶' : '▼'}
                   </Text>
-                )}
-              </View>
-            </View>
-            <View style={styles.sectionHeaderRight}>
-              <View style={styles.sectionBadges}>
-                {section.onlineCount > 0 && (
-                  <View style={[styles.sectionBadge, styles.sectionBadgeOnline, isDark && styles.sectionBadgeOnlineDark]}>
-                    <Text style={[styles.sectionBadgeText, isDark && styles.sectionBadgeTextDark]}>{section.onlineCount}</Text>
-                  </View>
-                )}
-                {section.offlineCount > 0 && (
-                  <View style={[styles.sectionBadge, styles.sectionBadgeOffline, isDark && styles.sectionBadgeOfflineDark]}>
-                    <Text style={[styles.sectionBadgeText, styles.sectionBadgeTextOffline, isDark && styles.sectionBadgeTextOfflineDark]}>
-                      {section.offlineCount}
+                  <View>
+                    <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+                      {section.title}
                     </Text>
+                    {section.hostname && (
+                      <Text style={[styles.sectionHostname, isDark && styles.sectionHostnameDark]}>
+                        {section.hostname}
+                      </Text>
+                    )}
                   </View>
-                )}
-              </View>
-              {section.offlineCount > 0 && (
+                </View>
+                <View style={styles.sectionHeaderRight}>
+                  <View style={styles.sectionBadges}>
+                    {section.onlineCount > 0 && (
+                      <View style={[styles.sectionBadge, styles.sectionBadgeOnline, isDark && styles.sectionBadgeOnlineDark]}>
+                        <Text style={[styles.sectionBadgeText, isDark && styles.sectionBadgeTextDark]}>{section.onlineCount}</Text>
+                      </View>
+                    )}
+                    {section.offlineCount > 0 && (
+                      <View style={[styles.sectionBadge, styles.sectionBadgeOffline, isDark && styles.sectionBadgeOfflineDark]}>
+                        <Text style={[styles.sectionBadgeText, styles.sectionBadgeTextOffline, isDark && styles.sectionBadgeTextOfflineDark]}>
+                          {section.offlineCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {section.offlineCount > 0 && (
+                    <TouchableOpacity
+                      style={styles.sectionClearButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        onClearEndedForMachine(section.id, section.title, section.offlineCount);
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[styles.sectionClearIcon, isDark && styles.sectionClearIconDark]}>🗑</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableOpacity>
+              {(showAdd || isStarting) && (
                 <TouchableOpacity
-                  style={styles.sectionClearButton}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    onClearEndedForMachine(section.id, section.title, section.offlineCount);
-                  }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={[styles.addSessionButton, isDark && styles.addSessionButtonDark]}
+                  onPress={() => onStartSession(section.id)}
+                  disabled={isStarting}
                 >
-                  <Text style={[styles.sectionClearIcon, isDark && styles.sectionClearIconDark]}>🗑</Text>
+                  {isStarting ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.addSessionButtonText}>+ New Session</Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
-          </TouchableOpacity>
-        )}
+          );
+        }}
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl
@@ -487,5 +559,22 @@ const styles = StyleSheet.create({
   },
   sectionBadgeTextOfflineDark: {
     color: '#9ca3af',
+  },
+  // Add session button (between header and cards)
+  addSessionButton: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    backgroundColor: '#6366f1',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addSessionButtonDark: {
+    backgroundColor: '#818cf8',
+  },
+  addSessionButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
