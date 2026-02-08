@@ -11,7 +11,6 @@ import type {
   InteractiveCommandData,
   InteractiveApplyPayload,
   InteractiveResult,
-  PresencePayload,
   UserQuestionData,
   UserAnswerData,
   PermissionRequestData,
@@ -79,7 +78,6 @@ interface ConnectionStoreState {
 
 let outputChannel: RealtimeChannel | null = null;
 let inputChannel: RealtimeChannel | null = null;
-let presenceChannel: RealtimeChannel | null = null;
 let seq = 0;
 let scrollToBottomCallback: (() => void) | null = null;
 
@@ -170,9 +168,6 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
       }
       if (inputChannel) {
         await supabase.removeChannel(inputChannel);
-      }
-      if (presenceChannel) {
-        await supabase.removeChannel(presenceChannel);
       }
 
       // Subscribe to output channel
@@ -303,39 +298,6 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         }),
       ]);
 
-      // Subscribe to presence channel to track CLI online status
-      const presenceChannelName = REALTIME_CHANNELS.sessionPresence(sessionId);
-      presenceChannel = supabase.channel(presenceChannelName);
-
-      presenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          const state = presenceChannel!.presenceState();
-          // Check if any CLI is present
-          const isCliOnline = Object.values(state).some((presences) =>
-            (presences as PresencePayload[]).some((p) => p.type === 'cli')
-          );
-          set({ isCliOnline });
-        })
-        .on('presence', { event: 'join' }, ({ newPresences }) => {
-          const cliJoined = (newPresences as PresencePayload[]).some((p) => p.type === 'cli');
-          if (cliJoined) {
-            set({ isCliOnline: true });
-          }
-        })
-        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-          const cliLeft = (leftPresences as PresencePayload[]).some((p) => p.type === 'cli');
-          if (cliLeft) {
-            // Check if any CLI is still present
-            const state = presenceChannel!.presenceState();
-            const isCliOnline = Object.values(state).some((presences) =>
-              (presences as PresencePayload[]).some((p) => p.type === 'cli')
-            );
-            set({ isCliOnline });
-          }
-        });
-
-      await presenceChannel.subscribe();
-
       set({ state: 'connected' });
 
       // Request available commands and models from CLI
@@ -350,10 +312,6 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   },
 
   disconnect: async () => {
-    if (presenceChannel) {
-      await supabase.removeChannel(presenceChannel);
-      presenceChannel = null;
-    }
     if (outputChannel) {
       await supabase.removeChannel(outputChannel);
       outputChannel = null;

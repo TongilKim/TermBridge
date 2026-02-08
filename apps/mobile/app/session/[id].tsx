@@ -29,7 +29,6 @@ export default function SessionScreen() {
     disconnect,
     state,
     requestModels,
-    isCliOnline,
     pendingQuestion,
     sendUserAnswer,
     clearPendingQuestion,
@@ -38,7 +37,8 @@ export default function SessionScreen() {
     clearPendingPermissionRequest,
   } = useConnectionStore();
 
-  const { sessions, updateSessionTitle } = useSessionStore();
+  const { sessions, updateSessionTitle, sessionOnlineStatus } = useSessionStore();
+  const isCliOnline = sessionOnlineStatus[id!] ?? null;
   const session = sessions.find((s) => s.id === id);
 
   const handleEditTitle = () => {

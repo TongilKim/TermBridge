@@ -17,6 +17,7 @@ import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useConnectionStore } from '../stores/connectionStore';
+import { useSessionStore } from '../stores/sessionStore';
 import type { RealtimeMessage } from 'termbridge-shared';
 
 interface TerminalProps {
@@ -84,7 +85,9 @@ export function Terminal({ maxLines = 1000 }: TerminalProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const { messages, state, isTyping, isCliOnline, registerScrollToBottom } = useConnectionStore();
+  const { messages, state, isTyping, sessionId, registerScrollToBottom } = useConnectionStore();
+  const { sessionOnlineStatus } = useSessionStore();
+  const isCliOnline = sessionId ? (sessionOnlineStatus[sessionId] ?? null) : null;
 
   // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
