@@ -182,7 +182,7 @@ export function SessionCard({ session }: SessionCardProps) {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={[styles.machineName, isDark && styles.machineNameDark]}>
-            {machine?.name || 'Unknown Machine'}
+            {session.title || machine?.name || 'Unknown Machine'}
           </Text>
           <View
             style={[

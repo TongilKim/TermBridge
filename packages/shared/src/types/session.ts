@@ -7,6 +7,7 @@ export interface Session {
   working_directory?: string;
   model?: string;
   sdk_session_id?: string; // Anthropic SDK session ID for resuming
+  title?: string;
   started_at: string;
   ended_at?: string;
 }

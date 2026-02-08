@@ -7,10 +7,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useConnectionStore } from '../../src/stores/connectionStore';
+import { useSessionStore } from '../../src/stores/sessionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
 import { UserQuestionPicker } from '../../src/components/UserQuestionPicker';
@@ -35,6 +37,29 @@ export default function SessionScreen() {
     sendPermissionResponse,
     clearPendingPermissionRequest,
   } = useConnectionStore();
+
+  const { sessions, updateSessionTitle } = useSessionStore();
+  const session = sessions.find((s) => s.id === id);
+
+  const handleEditTitle = () => {
+    Alert.prompt(
+      'Rename Session',
+      'Enter a new name for this session',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Save',
+          onPress: (value?: string) => {
+            if (value !== undefined && id) {
+              updateSessionTitle(id, value);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      session?.title || ''
+    );
+  };
 
   // Compute effective status for badge display
   const effectiveStatus =
@@ -75,7 +100,12 @@ export default function SessionScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={[styles.backText, isDark && styles.backTextDark]}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>Session</Text>
+        <TouchableOpacity onPress={handleEditTitle} style={styles.titleButton}>
+          <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
+            {session?.title || 'Session'}
+          </Text>
+          <Text style={[styles.editIcon, isDark && styles.editIconDark]}>✎</Text>
+        </TouchableOpacity>
         <View style={styles.headerRight}>
           {/* Status Badge */}
           <View style={[styles.statusBadge, styles[`statusBadge_${effectiveStatus}`]]}>
@@ -151,6 +181,11 @@ const styles = StyleSheet.create({
   backTextDark: {
     color: '#60a5fa',
   },
+  titleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
@@ -158,6 +193,13 @@ const styles = StyleSheet.create({
   },
   headerTitleDark: {
     color: '#ffffff',
+  },
+  editIcon: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  editIconDark: {
+    color: '#9ca3af',
   },
   headerRight: {
     flexDirection: 'row',

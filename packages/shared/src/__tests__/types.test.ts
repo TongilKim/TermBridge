@@ -222,6 +222,27 @@ describe('Session Types', () => {
       expect(fullSession.working_directory).toBe('/home/user/project');
       expect(fullSession.ended_at).toBe('2024-01-01T01:00:00Z');
     });
+
+    it('should have undefined title when not set', () => {
+      const session: Session = {
+        id: 'session-123',
+        machine_id: 'machine-456',
+        status: 'active',
+        started_at: '2024-01-01T00:00:00Z',
+      };
+      expect(session.title).toBeUndefined();
+    });
+
+    it('should return set value when title is provided', () => {
+      const session: Session = {
+        id: 'session-123',
+        machine_id: 'machine-456',
+        status: 'active',
+        started_at: '2024-01-01T00:00:00Z',
+        title: 'My Custom Session',
+      };
+      expect(session.title).toBe('My Custom Session');
+    });
   });
 });
 

@@ -275,6 +275,53 @@ describe('Store Logic', () => {
       expect(sessions.length).toBe(2);
     });
 
+    it('should update session title in local state', () => {
+      let sessions = [
+        { id: '1', machine_id: 'm1', status: 'active', title: undefined as string | undefined },
+        { id: '2', machine_id: 'm2', status: 'active', title: undefined as string | undefined },
+      ];
+
+      const updateSessionTitle = (sessionId: string, title: string) => {
+        const newTitle = title.trim() === '' ? undefined : title;
+        sessions = sessions.map((s) =>
+          s.id === sessionId ? { ...s, title: newTitle } : s
+        );
+      };
+
+      updateSessionTitle('1', 'My Dev Session');
+      expect(sessions[0].title).toBe('My Dev Session');
+      expect(sessions[1].title).toBeUndefined();
+    });
+
+    it('should clear title when empty string is provided', () => {
+      let sessions = [
+        { id: '1', machine_id: 'm1', status: 'active', title: 'Old Title' as string | undefined },
+      ];
+
+      const updateSessionTitle = (sessionId: string, title: string) => {
+        const newTitle = title.trim() === '' ? undefined : title;
+        sessions = sessions.map((s) =>
+          s.id === sessionId ? { ...s, title: newTitle } : s
+        );
+      };
+
+      updateSessionTitle('1', '');
+      expect(sessions[0].title).toBeUndefined();
+    });
+
+    it('should display title with priority: session.title || machine.name || Unknown Machine', () => {
+      const getDisplayName = (
+        sessionTitle: string | undefined,
+        machineName: string | undefined
+      ): string => {
+        return sessionTitle || machineName || 'Unknown Machine';
+      };
+
+      expect(getDisplayName('My Session', 'MacBook Pro')).toBe('My Session');
+      expect(getDisplayName(undefined, 'MacBook Pro')).toBe('MacBook Pro');
+      expect(getDisplayName(undefined, undefined)).toBe('Unknown Machine');
+    });
+
     it('should get ended session IDs for a specific machine', () => {
       const sessions = [
         { id: '1', machine_id: 'm1', status: 'active' },

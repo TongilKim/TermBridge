@@ -30,6 +30,7 @@ interface SessionStoreState {
   unsubscribeFromPresence: () => void;
   subscribeMachinePresence: () => void;
   unsubscribeMachinePresence: () => void;
+  updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   startSessionOnMachine: (machineId: string, onSuccess: (sessionId: string) => void) => void;
 }
 
@@ -388,6 +389,25 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     }
     machinePresenceChannels.clear();
     set({ machineOnlineStatus: {} });
+  },
+
+  updateSessionTitle: async (sessionId: string, title: string) => {
+    const dbTitle = title.trim() === '' ? null : title;
+
+    const { error } = await supabase
+      .from('sessions')
+      .update({ title: dbTitle })
+      .eq('id', sessionId);
+
+    if (error) throw error;
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? { ...s, title: dbTitle ?? undefined }
+          : s
+      ),
+    }));
   },
 
   startSessionOnMachine: (machineId: string, onSuccess: (sessionId: string) => void) => {
