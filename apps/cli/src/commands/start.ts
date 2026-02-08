@@ -41,7 +41,7 @@ export function createStartCommand(): Command {
       const logger = new Logger();
       const spinner = new Spinner('Starting TermBridge...');
 
-      let daemon: Daemon | null = null;
+      const daemons: Map<string, Daemon> = new Map(); // sessionId -> Daemon
       let machineClient: MachineRealtimeClient | null = null;
 
       try {
@@ -159,15 +159,19 @@ export function createStartCommand(): Command {
           isShuttingDown = true;
           console.log(`\n[${signal}] Shutting down gracefully...`);
           try {
-            if (daemon) {
-              await daemon.stop();
-              daemon = null;
+            for (const [sessionId, d] of daemons) {
+              try {
+                await d.stop();
+              } catch {
+                // Continue stopping other daemons
+              }
+              daemons.delete(sessionId);
             }
             if (machineClient) {
               await machineClient.disconnect();
               machineClient = null;
             }
-            console.log('[Cleanup] Session ended in database');
+            console.log('[Cleanup] All sessions ended in database');
             await cleanup();
           } catch (error) {
             console.error('[Cleanup] Error during shutdown:', error);
@@ -231,21 +235,10 @@ export function createStartCommand(): Command {
         // Handle incoming commands from mobile
         machineClient.on('command', async (cmd: MachineCommand) => {
           if (cmd.type === 'start-session') {
-            // Stop existing session if one is running
-            if (daemon) {
-              logger.info('Stopping existing session to start a new one...');
-              try {
-                await daemon.stop();
-              } catch {
-                // Silently handle stop errors
-              }
-              daemon = null;
-            }
-
             logger.info('Starting session (requested from mobile)...');
 
             try {
-              daemon = new Daemon({
+              const newDaemon = new Daemon({
                 supabase,
                 userId: user.id,
                 machineId: machine.id,
@@ -254,9 +247,12 @@ export function createStartCommand(): Command {
                 hybrid: false,
               });
 
-              daemon.on('started', async ({ session }) => {
+              newDaemon.on('started', async ({ session }) => {
+                daemons.set(session.id, newDaemon);
+
                 logger.info(`  Session: ${session.id.slice(0, 8)}...`);
                 logger.info('  Mobile sync: Enabled');
+                logger.info(`  Active sessions: ${daemons.size}`);
                 logger.info('');
 
                 await machineClient?.broadcastSessionStarted(
@@ -265,52 +261,53 @@ export function createStartCommand(): Command {
                 );
               });
 
-              daemon.on('error', (error: Error) => {
+              newDaemon.on('error', (error: Error) => {
                 logger.error(`Session error: ${error.message}`);
               });
 
-              daemon.on('mobile-disconnected', async () => {
+              newDaemon.on('mobile-disconnected', async () => {
                 logger.info('Mobile disconnected. Ending session...');
                 try {
-                  await daemon?.stop();
+                  await newDaemon.stop();
                 } catch {
                   // Silently handle stop errors - stopped handler handles the rest
                 }
               });
 
-              daemon.on('stopped', async () => {
-                const sessionId = daemon?.getSession()?.id;
-                daemon = null;
-
+              newDaemon.on('stopped', async () => {
+                const sessionId = newDaemon.getSession()?.id;
                 if (sessionId) {
+                  daemons.delete(sessionId);
                   await machineClient?.broadcastSessionEnded(sessionId);
                 }
 
                 logger.info('Session ended.');
+                logger.info(`  Active sessions: ${daemons.size}`);
                 logger.info('');
-                logger.info('Waiting for next session request...');
-                logger.info('');
+                if (daemons.size === 0) {
+                  logger.info('Waiting for next session request...');
+                  logger.info('');
+                }
               });
 
-              await daemon.start();
+              await newDaemon.start();
             } catch (error) {
               const errorMessage =
                 error instanceof Error ? error.message : 'Unknown error';
               logger.error(`Failed to start session: ${errorMessage}`);
               await machineClient?.broadcastError(errorMessage);
-              daemon = null;
             }
           }
 
-          if (cmd.type === 'stop-session') {
-            if (daemon) {
-              logger.info('Stopping session (requested from mobile)...');
+          if (cmd.type === 'stop-session' && cmd.sessionId) {
+            const targetDaemon = daemons.get(cmd.sessionId);
+            if (targetDaemon) {
+              logger.info(`Stopping session ${cmd.sessionId.slice(0, 8)}... (requested from mobile)`);
               try {
-                await daemon.stop();
+                await targetDaemon.stop();
               } catch {
                 // Silently handle stop errors
               }
-              daemon = null;
             }
           }
         });

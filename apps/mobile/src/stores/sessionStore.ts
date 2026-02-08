@@ -263,6 +263,20 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       }
     }
 
+    // Clear sessionOnlineStatus for sessions that are no longer active
+    const activeSessionIds = new Set(activeSessions.map((s) => s.id));
+    const updatedStatus = { ...get().sessionOnlineStatus };
+    let changed = false;
+    for (const sessionId of Object.keys(updatedStatus)) {
+      if (!activeSessionIds.has(sessionId)) {
+        delete updatedStatus[sessionId];
+        changed = true;
+      }
+    }
+    if (changed) {
+      set({ sessionOnlineStatus: updatedStatus });
+    }
+
     // Subscribe to presence for active sessions
     for (const session of activeSessions) {
       if (presenceChannels.has(session.id)) continue;
@@ -273,12 +287,20 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       channel
         .on('presence', { event: 'sync' }, () => {
           const state = channel.presenceState();
-          const isCliOnline = Object.values(state).some((presences) =>
+          const entries = Object.values(state);
+          const isCliOnline = entries.some((presences) =>
             (presences as PresencePayload[]).some((p) => p.type === 'cli')
           );
-          set((s) => ({
-            sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
-          }));
+          set((s) => {
+            // Preserve optimistic true on empty initial sync
+            // (CLI presence may not have propagated yet)
+            if (!isCliOnline && entries.length === 0 && s.sessionOnlineStatus[session.id] === true) {
+              return s;
+            }
+            return {
+              sessionOnlineStatus: { ...s.sessionOnlineStatus, [session.id]: isCliOnline },
+            };
+          });
         })
         .on('presence', { event: 'join' }, ({ newPresences }) => {
           const cliJoined = (newPresences as PresencePayload[]).some((p) => p.type === 'cli');

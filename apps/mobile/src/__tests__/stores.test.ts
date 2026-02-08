@@ -322,6 +322,130 @@ describe('Store Logic', () => {
       expect(getDisplayName(undefined, undefined)).toBe('Unknown Machine');
     });
 
+    describe('Presence Subscription Cleanup', () => {
+      it('should clear sessionOnlineStatus when session is ended and channel removed', () => {
+        let sessionOnlineStatus: Record<string, boolean> = {
+          'session-A': true,
+          'session-B': true,
+        };
+        const sessions = [
+          { id: 'session-A', status: 'ended' },
+          { id: 'session-B', status: 'active' },
+        ];
+
+        // Simulate the cleanup logic from subscribeToPresence
+        const activeSessions = sessions.filter((s) => s.status === 'active');
+        const activeSessionIds = new Set(activeSessions.map((s) => s.id));
+        const updatedStatus = { ...sessionOnlineStatus };
+        for (const sessionId of Object.keys(updatedStatus)) {
+          if (!activeSessionIds.has(sessionId)) {
+            delete updatedStatus[sessionId];
+          }
+        }
+        sessionOnlineStatus = updatedStatus;
+
+        expect(sessionOnlineStatus['session-A']).toBeUndefined();
+        expect(sessionOnlineStatus['session-B']).toBe(true);
+      });
+
+      it('should not overwrite optimistic true status on empty initial presence sync', () => {
+        let sessionOnlineStatus: Record<string, boolean> = {
+          'session-B': true, // optimistic from startSessionOnMachine
+        };
+
+        // Simulate sync with empty presence state (no entries yet)
+        const entries: any[] = [];
+        const isCliOnline = false; // no CLI found in empty state
+
+        // The fix: if sync is empty AND we already have optimistic true, preserve it
+        if (!isCliOnline && entries.length === 0 && sessionOnlineStatus['session-B'] === true) {
+          // Do nothing - preserve optimistic status
+        } else {
+          sessionOnlineStatus = { ...sessionOnlineStatus, 'session-B': isCliOnline };
+        }
+
+        expect(sessionOnlineStatus['session-B']).toBe(true);
+      });
+
+      it('should update to false when sync has actual presence data without CLI', () => {
+        let sessionOnlineStatus: Record<string, boolean> = {
+          'session-B': true,
+        };
+
+        // Simulate sync with non-empty state (some presences, but no CLI type)
+        const entries = [[{ type: 'mobile' }]]; // non-empty, but no CLI
+        const isCliOnline = entries.some((presences) =>
+          (presences as any[]).some((p) => p.type === 'cli')
+        );
+
+        // Non-empty state: we trust the presence data
+        if (!isCliOnline && entries.length === 0 && sessionOnlineStatus['session-B'] === true) {
+          // Would preserve - but won't match because entries.length > 0
+        } else {
+          sessionOnlineStatus = { ...sessionOnlineStatus, 'session-B': isCliOnline };
+        }
+
+        expect(sessionOnlineStatus['session-B']).toBe(false);
+      });
+
+      it('should update to true when sync shows CLI present', () => {
+        let sessionOnlineStatus: Record<string, boolean> = {
+          'session-B': false,
+        };
+
+        // Simulate sync with CLI present
+        const entries = [[{ type: 'cli' }]];
+        const isCliOnline = entries.some((presences) =>
+          (presences as any[]).some((p) => p.type === 'cli')
+        );
+
+        if (!isCliOnline && entries.length === 0 && sessionOnlineStatus['session-B'] === true) {
+          // preserve - won't match
+        } else {
+          sessionOnlineStatus = { ...sessionOnlineStatus, 'session-B': isCliOnline };
+        }
+
+        expect(sessionOnlineStatus['session-B']).toBe(true);
+      });
+
+      it('should handle multiple sessions: ended session cleaned up, new session preserved', () => {
+        // Full scenario: session A was online, now ended; session B just created with optimistic true
+        let sessionOnlineStatus: Record<string, boolean> = {
+          'session-A': true,
+          'session-B': true, // optimistic
+        };
+        const sessions = [
+          { id: 'session-A', status: 'ended' },
+          { id: 'session-B', status: 'active' },
+        ];
+
+        // Step 1: Cleanup ended sessions from online status
+        const activeSessions = sessions.filter((s) => s.status === 'active');
+        const activeSessionIds = new Set(activeSessions.map((s) => s.id));
+        const updatedStatus = { ...sessionOnlineStatus };
+        for (const sessionId of Object.keys(updatedStatus)) {
+          if (!activeSessionIds.has(sessionId)) {
+            delete updatedStatus[sessionId];
+          }
+        }
+        sessionOnlineStatus = updatedStatus;
+
+        // Step 2: Empty sync fires for session-B (CLI hasn't propagated yet)
+        const entries: any[] = [];
+        const isCliOnline = false;
+        if (!isCliOnline && entries.length === 0 && sessionOnlineStatus['session-B'] === true) {
+          // Preserve optimistic status
+        } else {
+          sessionOnlineStatus = { ...sessionOnlineStatus, 'session-B': isCliOnline };
+        }
+
+        // session-A should be cleaned up (not in status map)
+        expect(sessionOnlineStatus['session-A']).toBeUndefined();
+        // session-B should still be true (optimistic preserved)
+        expect(sessionOnlineStatus['session-B']).toBe(true);
+      });
+    });
+
     it('should get ended session IDs for a specific machine', () => {
       const sessions = [
         { id: '1', machine_id: 'm1', status: 'active' },
