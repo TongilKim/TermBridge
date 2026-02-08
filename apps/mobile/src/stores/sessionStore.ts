@@ -413,7 +413,12 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
 
       if (cmd.type === 'session-started' && cmd.sessionId) {
         cleanup();
-        set({ isStartingSession: null, startSessionError: null });
+        // Mark session as online immediately — CLI just responded, so it's online
+        set((s) => ({
+          isStartingSession: null,
+          startSessionError: null,
+          sessionOnlineStatus: { ...s.sessionOnlineStatus, [cmd.sessionId!]: true },
+        }));
 
         // Refresh sessions so the new session appears in the list
         get().fetchSessions(true).then(() => {
