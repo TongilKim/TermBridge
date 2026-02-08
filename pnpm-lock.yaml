@@ -15,8 +15,8 @@ importers:
   apps/cli:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: ^0.2.23
-        version: 0.2.23(zod@4.3.6)
+        specifier: ^0.2.37
+        version: 0.2.37(zod@4.3.6)
       '@supabase/supabase-js':
         specifier: ^2.39.0
         version: 2.93.1
@@ -184,8 +184,8 @@ packages:
         optional: true
     dev: false
 
-  /@anthropic-ai/claude-agent-sdk@0.2.23(zod@4.3.6):
-    resolution: {integrity: sha512-pkY8vQu4cVoy43JaGNlnV7cl7RiaBjwt5kwiYucLqs37B/EUmvcM2LK44CgC9YyPSM0OTTAXaTYy7Bp4hje4UQ==}
+  /@anthropic-ai/claude-agent-sdk@0.2.37(zod@4.3.6):
+    resolution: {integrity: sha512-0TCAUuGXiWYV2JK+j2SiakGzPA7aoR5DNRxZ0EA571loGIqN3FRfiO1kipeBpEc+cRQ03a/4Kt5YAjMx0KBW+A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       zod: ^4.0.0
