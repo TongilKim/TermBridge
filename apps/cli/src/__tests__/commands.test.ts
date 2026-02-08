@@ -24,12 +24,6 @@ describe('CLI Commands', () => {
       expect(cmd.name()).toBe('start');
     });
 
-    it('should have daemon option', () => {
-      const cmd = createStartCommand();
-      const daemonOption = cmd.options.find((opt) => opt.long === '--daemon');
-      expect(daemonOption).toBeDefined();
-    });
-
     it('should have name option', () => {
       const cmd = createStartCommand();
       const nameOption = cmd.options.find((opt) => opt.long === '--name');
@@ -44,7 +38,7 @@ describe('CLI Commands', () => {
 
     it('should have description', () => {
       const cmd = createStartCommand();
-      expect(cmd.description()).toBe('Start a Claude Code session');
+      expect(cmd.description()).toBe('Start TermBridge and listen for session requests from mobile app');
     });
   });
 

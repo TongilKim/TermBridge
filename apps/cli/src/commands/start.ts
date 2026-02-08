@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import { createClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
-import * as readline from 'readline';
 import { Daemon } from '../daemon/daemon.js';
+import { MachineManager } from '../daemon/machine.js';
+import { MachineRealtimeClient } from '../realtime/machine-client.js';
 import { Config, ConfigurationError } from '../utils/config.js';
 import { Logger } from '../utils/logger.js';
 import { Spinner } from '../utils/spinner.js';
@@ -15,6 +16,7 @@ import {
   isMacOS,
   type SleepPreventionState,
 } from '../utils/sleep-prevention.js';
+import type { MachineCommand } from 'termbridge-shared';
 
 // Polyfill WebSocket for Node.js (Supabase Realtime needs this)
 if (typeof globalThis.WebSocket === 'undefined') {
@@ -23,7 +25,6 @@ if (typeof globalThis.WebSocket === 'undefined') {
 }
 
 export interface StartOptions {
-  daemon?: boolean;
   name?: string;
   preventSleep?: boolean;
 }
@@ -32,14 +33,16 @@ export function createStartCommand(): Command {
   const command = new Command('start');
 
   command
-    .description('Start a Claude Code session')
-    .option('-d, --daemon', 'Run in background (daemon mode)')
+    .description('Start TermBridge and listen for session requests from mobile app')
     .option('-n, --name <name>', 'Machine name')
     .option('--prevent-sleep', 'Auto-enable sleep prevention (skip prompt)')
     .action(async (options: StartOptions) => {
       const config = new Config();
       const logger = new Logger();
       const spinner = new Spinner('Starting TermBridge...');
+
+      let daemon: Daemon | null = null;
+      let machineClient: MachineRealtimeClient | null = null;
 
       try {
         config.requireConfiguration();
@@ -102,8 +105,11 @@ export function createStartCommand(): Command {
           spinner.stop();
 
           // Auto-enable if --prevent-sleep flag is used, otherwise ask
-          const enableSleep = options.preventSleep ||
-            await promptYesNo('Prevent sleep when lid is closed? (keeps termbridge running) [y/N]: ');
+          const enableSleep =
+            options.preventSleep ||
+            (await promptYesNo(
+              'Prevent sleep when lid is closed? (keeps termbridge running) [y/N]: '
+            ));
 
           if (enableSleep) {
             logger.info('');
@@ -133,57 +139,7 @@ export function createStartCommand(): Command {
           spinner.start();
         }
 
-        spinner.update('Registering machine...');
-
-        const daemon = new Daemon({
-          supabase,
-          userId: user.id,
-          machineId: config.getMachineId(),
-          machineName: options.name,
-          cwd: process.cwd(),
-          hybrid: !options.daemon,
-        });
-
-        daemon.on('started', ({ machine, session, mobileSyncEnabled }) => {
-          // Save machine ID for future use
-          config.setMachineId(machine.id);
-
-          // Stop spinner and show success message
-          spinner.stop();
-          logger.info('');
-          logger.info('✓ TermBridge is ready!');
-          logger.info(`  Session: ${session.id.slice(0, 8)}...`);
-          logger.info(`  Machine: ${machine.name}`);
-          if (mobileSyncEnabled) {
-            logger.info('  Mobile sync: Enabled');
-          } else {
-            logger.warn('  Mobile sync: Disabled (check Supabase Realtime settings)');
-          }
-          if (sleepState.caffeinateProcess) {
-            logger.info(`  Sleep prevention: ${sleepState.pmsetEnabled ? 'Lid-closed mode' : 'Basic mode'}`);
-          }
-          logger.info('');
-          logger.info('Type your prompts below or send from mobile app.');
-          logger.info('Type "exit" to quit.');
-          logger.info('');
-        });
-
-        daemon.on('notification', ({ type, message }) => {
-          logger.debug(`Notification: ${type} - ${message}`);
-        });
-
-        daemon.on('stopped', () => {
-          logger.info('Session ended');
-          process.exit(0);
-        });
-
-        daemon.on('error', (error: Error) => {
-          logger.error(`Error: ${error.message}`);
-        });
-
-        // Handle process signals
-        let isShuttingDown = false;
-
+        // Cleanup helper
         const cleanup = async () => {
           stopCaffeinate(sleepState.caffeinateProcess);
           if (sleepState.pmsetEnabled) {
@@ -191,6 +147,9 @@ export function createStartCommand(): Command {
             disableSleepPrevention();
           }
         };
+
+        // Handle process signals
+        let isShuttingDown = false;
 
         const gracefulShutdown = async (signal: string) => {
           if (isShuttingDown) {
@@ -200,7 +159,14 @@ export function createStartCommand(): Command {
           isShuttingDown = true;
           console.log(`\n[${signal}] Shutting down gracefully...`);
           try {
-            await daemon.stop();
+            if (daemon) {
+              await daemon.stop();
+              daemon = null;
+            }
+            if (machineClient) {
+              await machineClient.disconnect();
+              machineClient = null;
+            }
             console.log('[Cleanup] Session ended in database');
             await cleanup();
           } catch (error) {
@@ -217,40 +183,137 @@ export function createStartCommand(): Command {
           gracefulShutdown('SIGTERM').catch(console.error);
         });
 
-        daemon.on('mobile-disconnected', () => {
-          gracefulShutdown('Mobile Disconnect').catch(console.error);
+        spinner.update('Registering machine...');
+
+        // Register machine
+        const machineManager = new MachineManager({ supabase });
+        const machine = await machineManager.registerMachine(
+          user.id,
+          options.name,
+          config.getMachineId()
+        );
+
+        // Save machine ID for future use
+        config.setMachineId(machine.id);
+
+        spinner.update('Connecting to realtime...');
+
+        // Create machine-level realtime client
+        machineClient = new MachineRealtimeClient({
+          supabase,
+          machineId: machine.id,
         });
 
-        await daemon.start();
+        const connected = await machineClient.connect();
 
-        // If not daemon mode, read local input
-        if (!options.daemon) {
-          const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-          });
+        spinner.stop();
 
-          const promptForInput = () => {
-            rl.question('', async (input) => {
-              const trimmed = input.trim();
-
-              if (trimmed.toLowerCase() === 'exit') {
-                await daemon.stop();
-                await cleanup();
-                rl.close();
-                return;
-              }
-
-              if (trimmed) {
-                await daemon.sendPrompt(trimmed);
-              }
-
-              promptForInput();
-            });
-          };
-
-          promptForInput();
+        if (!connected) {
+          logger.error(
+            'Failed to connect to realtime. Check your network connection.'
+          );
+          process.exit(1);
         }
+
+        logger.info('');
+        logger.info('✓ TermBridge is ready!');
+        logger.info(`  Machine: ${machine.name}`);
+        if (sleepState.caffeinateProcess) {
+          logger.info(
+            `  Sleep prevention: ${sleepState.pmsetEnabled ? 'Lid-closed mode' : 'Basic mode'}`
+          );
+        }
+        logger.info('');
+        logger.info('Open the mobile app to start a session.');
+        logger.info('Press Ctrl+C to stop.');
+        logger.info('');
+
+        // Handle incoming commands from mobile
+        machineClient.on('command', async (cmd: MachineCommand) => {
+          if (cmd.type === 'start-session') {
+            // Stop existing session if one is running
+            if (daemon) {
+              logger.info('Stopping existing session to start a new one...');
+              try {
+                await daemon.stop();
+              } catch {
+                // Silently handle stop errors
+              }
+              daemon = null;
+            }
+
+            logger.info('Starting session (requested from mobile)...');
+
+            try {
+              daemon = new Daemon({
+                supabase,
+                userId: user.id,
+                machineId: machine.id,
+                machineName: options.name,
+                cwd: process.cwd(),
+                hybrid: false,
+              });
+
+              daemon.on('started', async ({ session }) => {
+                logger.info(`  Session: ${session.id.slice(0, 8)}...`);
+                logger.info('  Mobile sync: Enabled');
+                logger.info('');
+
+                await machineClient?.broadcastSessionStarted(
+                  session.id,
+                  process.cwd()
+                );
+              });
+
+              daemon.on('error', (error: Error) => {
+                logger.error(`Session error: ${error.message}`);
+              });
+
+              daemon.on('mobile-disconnected', async () => {
+                logger.info('Mobile disconnected. Ending session...');
+                try {
+                  await daemon?.stop();
+                } catch {
+                  // Silently handle stop errors - stopped handler handles the rest
+                }
+              });
+
+              daemon.on('stopped', async () => {
+                const sessionId = daemon?.getSession()?.id;
+                daemon = null;
+
+                if (sessionId) {
+                  await machineClient?.broadcastSessionEnded(sessionId);
+                }
+
+                logger.info('Session ended.');
+                logger.info('');
+                logger.info('Waiting for next session request...');
+                logger.info('');
+              });
+
+              await daemon.start();
+            } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : 'Unknown error';
+              logger.error(`Failed to start session: ${errorMessage}`);
+              await machineClient?.broadcastError(errorMessage);
+              daemon = null;
+            }
+          }
+
+          if (cmd.type === 'stop-session') {
+            if (daemon) {
+              logger.info('Stopping session (requested from mobile)...');
+              try {
+                await daemon.stop();
+              } catch {
+                // Silently handle stop errors
+              }
+              daemon = null;
+            }
+          }
+        });
       } catch (error) {
         if (error instanceof ConfigurationError) {
           spinner.stop();

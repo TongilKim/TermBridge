@@ -34,7 +34,6 @@
   "scripts": {
     "build": "tsup",
     "start": "tsup && node dist/index.js start",
-    "listen": "tsup && node dist/index.js listen",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
