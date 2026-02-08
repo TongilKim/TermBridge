@@ -598,6 +598,160 @@ describe('Daemon', () => {
     });
   });
 
+  describe('concurrent sessions', () => {
+    it('should support multiple daemons running concurrently', async () => {
+      const daemon1 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      const daemon2 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon1.start();
+      await daemon2.start();
+
+      expect(daemon1.isRunning()).toBe(true);
+      expect(daemon2.isRunning()).toBe(true);
+
+      await daemon1.stop();
+      await daemon2.stop();
+    });
+
+    it('should stop one daemon without affecting others', async () => {
+      const daemon1 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      const daemon2 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await daemon1.start();
+      await daemon2.start();
+
+      // Stop only daemon1
+      await daemon1.stop();
+
+      expect(daemon1.isRunning()).toBe(false);
+      expect(daemon2.isRunning()).toBe(true);
+
+      await daemon2.stop();
+    });
+
+    it('should track daemons by session ID in a Map', async () => {
+      // Make sessions table return different IDs for each insert
+      let sessionCounter = 0;
+      const originalFrom = mockSupabase.from;
+      mockSupabase.from = vi.fn((table) => {
+        if (table === 'sessions') {
+          return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockImplementation(() => {
+                  sessionCounter++;
+                  return Promise.resolve({
+                    data: { ...mockSession, id: `session-${sessionCounter}` },
+                    error: null,
+                  });
+                }),
+              }),
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        return (originalFrom as any)(table);
+      });
+
+      const daemons: Map<string, Daemon> = new Map();
+
+      const d1 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      const d2 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      await d1.start();
+      await d2.start();
+
+      const session1Id = d1.getSession()?.id;
+      const session2Id = d2.getSession()?.id;
+
+      expect(session1Id).toBeDefined();
+      expect(session2Id).toBeDefined();
+      expect(session1Id).not.toBe(session2Id);
+
+      daemons.set(session1Id!, d1);
+      daemons.set(session2Id!, d2);
+
+      expect(daemons.size).toBe(2);
+
+      // Stop one by session ID
+      const targetDaemon = daemons.get(session1Id!);
+      expect(targetDaemon).toBeDefined();
+      await targetDaemon!.stop();
+      daemons.delete(session1Id!);
+
+      expect(daemons.size).toBe(1);
+      expect(daemons.has(session2Id!)).toBe(true);
+      expect(daemons.get(session2Id!)!.isRunning()).toBe(true);
+
+      await d2.stop();
+      daemons.delete(session2Id!);
+
+      // Restore original mock
+      mockSupabase.from = originalFrom;
+    });
+
+    it('should emit stopped event independently for each daemon', async () => {
+      const daemon1 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      const daemon2 = new Daemon({
+        supabase: mockSupabase as SupabaseClient,
+        userId: 'user-456',
+        cwd: '/home/user',
+      });
+
+      const stopped1 = vi.fn();
+      const stopped2 = vi.fn();
+
+      daemon1.on('stopped', stopped1);
+      daemon2.on('stopped', stopped2);
+
+      await daemon1.start();
+      await daemon2.start();
+
+      await daemon1.stop();
+
+      expect(stopped1).toHaveBeenCalled();
+      expect(stopped2).not.toHaveBeenCalled();
+
+      await daemon2.stop();
+
+      expect(stopped2).toHaveBeenCalled();
+    });
+  });
+
   describe('model handling', () => {
     it('should handle model-change message from mobile', async () => {
       let inputHandler: ((payload: any) => void) | null = null;
