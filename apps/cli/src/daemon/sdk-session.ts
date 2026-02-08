@@ -3,8 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options, Query, SlashCommand as SDKSlashCommand } from '@anthropic-ai/claude-agent-sdk';
-import type { ImageAttachment, ModelInfo, PermissionMode, SlashCommand, UserQuestionData, UserQuestion } from 'termbridge-shared';
+import type { Options, Query, SlashCommand as SDKSlashCommand, CanUseTool, PermissionResult, PermissionUpdate as SDKPermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
+import type { ImageAttachment, ModelInfo, PermissionMode, SlashCommand, UserQuestionData, UserQuestion, PermissionRequestData, PermissionResponseData, PermissionUpdate } from 'termbridge-shared';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface SdkSessionOptions {
   cwd: string;
@@ -16,6 +17,13 @@ export interface SdkSessionOptions {
 interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+// Pending permission request with resolver
+interface PendingPermissionRequest {
+  resolve: (result: PermissionResult) => void;
+  reject: (error: Error) => void;
+  signal: AbortSignal;
 }
 
 export class SdkSession extends EventEmitter {
@@ -30,12 +38,117 @@ export class SdkSession extends EventEmitter {
   private conversationHistory: ConversationMessage[] = [];
   private pendingContextTransfer: boolean = false;
   private thinkingEnabled: boolean = false;
+  private pendingPermissionRequests: Map<string, PendingPermissionRequest> = new Map();
 
   constructor(options: SdkSessionOptions) {
     super();
     this.options = options;
     this.currentPermissionMode = options.permissionMode || 'default';
     this.currentModel = options.model || 'default';
+  }
+
+  /**
+   * Handle permission response from mobile
+   */
+  handlePermissionResponse(response: PermissionResponseData): void {
+    const pending = this.pendingPermissionRequests.get(response.requestId);
+    if (!pending) {
+      console.warn(`[WARN] No pending permission request found for ID: ${response.requestId}`);
+      return;
+    }
+
+    this.pendingPermissionRequests.delete(response.requestId);
+
+    if (response.behavior === 'allow') {
+      const result: PermissionResult = {
+        behavior: 'allow',
+        updatedInput: response.updatedInput,
+        updatedPermissions: response.updatedPermissions as SDKPermissionUpdate[] | undefined,
+      };
+      pending.resolve(result);
+    } else {
+      const result: PermissionResult = {
+        behavior: 'deny',
+        message: response.message || 'Permission denied by user',
+      };
+      pending.resolve(result);
+    }
+  }
+
+  /**
+   * Create canUseTool callback for SDK
+   */
+  private createCanUseTool(): CanUseTool {
+    return async (
+      toolName: string,
+      input: Record<string, unknown>,
+      options: {
+        signal: AbortSignal;
+        suggestions?: SDKPermissionUpdate[];
+        blockedPath?: string;
+        decisionReason?: string;
+        toolUseID: string;
+        agentID?: string;
+      }
+    ): Promise<PermissionResult> => {
+      const requestId = uuidv4();
+
+      // Convert SDK permission updates to our type
+      const suggestions = options.suggestions?.map((s): PermissionUpdate => {
+        // Handle different permission update types
+        if (s.type === 'addRules' || s.type === 'replaceRules' || s.type === 'removeRules') {
+          return {
+            type: s.type,
+            rules: s.rules,
+            behavior: s.behavior,
+            destination: s.destination,
+          };
+        } else if (s.type === 'setMode') {
+          return {
+            type: 'setMode',
+            mode: s.mode as PermissionMode,
+            destination: s.destination,
+          };
+        } else if (s.type === 'addDirectories' || s.type === 'removeDirectories') {
+          return {
+            type: s.type,
+            directories: s.directories,
+            destination: s.destination,
+          };
+        }
+        // Fallback - should never reach here
+        return s as PermissionUpdate;
+      });
+
+      const requestData: PermissionRequestData = {
+        requestId,
+        toolName,
+        toolInput: input,
+        toolUseId: options.toolUseID,
+        suggestions,
+        blockedPath: options.blockedPath,
+        decisionReason: options.decisionReason,
+        agentId: options.agentID,
+      };
+
+      // Emit event for daemon to broadcast to mobile
+      this.emit('permission-request', requestData);
+
+      // Create promise that will be resolved when mobile responds
+      return new Promise<PermissionResult>((resolve, reject) => {
+        this.pendingPermissionRequests.set(requestId, {
+          resolve,
+          reject,
+          signal: options.signal,
+        });
+
+        // Handle abort
+        options.signal.addEventListener('abort', () => {
+          this.pendingPermissionRequests.delete(requestId);
+          reject(new Error('Permission request aborted'));
+        });
+      });
+    };
   }
 
   setPermissionMode(mode: PermissionMode): void {
@@ -89,6 +202,8 @@ export class SdkSession extends EventEmitter {
         permissionMode: this.currentPermissionMode,
         // Pass model directly - SDK should handle aliases like 'opus', 'sonnet', 'haiku'
         model: this.currentModel,
+        // Custom permission handler to route to mobile
+        canUseTool: this.createCanUseTool(),
       };
 
       // Resume session if we have one

@@ -39,7 +39,9 @@ export type RealtimeMessageType =
   | 'resume-request' // Request to resume a different session (doesn't appear in chat)
   | 'resume-history' // Tells mobile to load messages from a previous session
   | 'user-question' // Claude is asking the user a question with options
-  | 'user-answer'; // User's answer to a question
+  | 'user-answer' // User's answer to a question
+  | 'permission-request' // SDK is asking for tool permission
+  | 'permission-response'; // User's response to permission request
 
 export type InteractiveCommandType =
   | 'config'
@@ -102,6 +104,8 @@ export interface RealtimeMessage {
   historySessionId?: string; // Supabase session ID to load messages from (for resume-history)
   userQuestion?: UserQuestionData; // For user-question type
   userAnswer?: UserAnswerData; // For user-answer type
+  permissionRequest?: PermissionRequestData; // For permission-request type
+  permissionResponse?: PermissionResponseData; // For permission-response type
   timestamp: number;
   seq: number;
 }
@@ -145,4 +149,73 @@ export interface UserQuestionData {
 export interface UserAnswerData {
   toolUseId: string;
   answers: Record<string, string>; // question index -> selected option label or custom text
+}
+
+// Permission request types (for SDK canUseTool callback)
+export type PermissionBehavior = 'allow' | 'deny' | 'ask';
+
+export interface PermissionRuleValue {
+  toolName: string;
+  ruleContent?: string;
+}
+
+export type PermissionUpdateDestination =
+  | 'userSettings'
+  | 'projectSettings'
+  | 'localSettings'
+  | 'session'
+  | 'cliArg';
+
+export type PermissionUpdate =
+  | {
+      type: 'addRules';
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: PermissionUpdateDestination;
+    }
+  | {
+      type: 'replaceRules';
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: PermissionUpdateDestination;
+    }
+  | {
+      type: 'removeRules';
+      rules: PermissionRuleValue[];
+      behavior: PermissionBehavior;
+      destination: PermissionUpdateDestination;
+    }
+  | {
+      type: 'setMode';
+      mode: PermissionMode;
+      destination: PermissionUpdateDestination;
+    }
+  | {
+      type: 'addDirectories';
+      directories: string[];
+      destination: PermissionUpdateDestination;
+    }
+  | {
+      type: 'removeDirectories';
+      directories: string[];
+      destination: PermissionUpdateDestination;
+    };
+
+export interface PermissionRequestData {
+  requestId: string;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  toolUseId: string;
+  suggestions?: PermissionUpdate[];
+  blockedPath?: string;
+  decisionReason?: string;
+  agentId?: string;
+}
+
+export interface PermissionResponseData {
+  requestId: string;
+  behavior: 'allow' | 'deny';
+  message?: string; // For deny - reason message
+  updatedInput?: Record<string, unknown>; // For allow - modified input
+  updatedPermissions?: PermissionUpdate[]; // For allow - permission updates
 }

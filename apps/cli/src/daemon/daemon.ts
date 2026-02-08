@@ -5,7 +5,7 @@ import { SessionManager } from './session.js';
 import { MachineManager } from './machine.js';
 import { ConfigManager } from './config-manager.js';
 import { RealtimeClient } from '../realtime/client.js';
-import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode, UserQuestionData } from 'termbridge-shared';
+import type { Session, Machine, RealtimeMessage, ImageAttachment, PermissionMode, UserQuestionData, PermissionRequestData } from 'termbridge-shared';
 
 export interface DaemonOptions {
   supabase: SupabaseClient;
@@ -146,6 +146,17 @@ export class Daemon extends EventEmitter {
       if (this.realtimeClient) {
         try {
           await this.realtimeClient.broadcastUserQuestion(questionData);
+        } catch {
+          // Silently handle broadcast errors
+        }
+      }
+    });
+
+    // Wire up permission requests to broadcast to mobile
+    this.sdkSession.on('permission-request', async (requestData: PermissionRequestData) => {
+      if (this.realtimeClient) {
+        try {
+          await this.realtimeClient.broadcastPermissionRequest(requestData);
         } catch {
           // Silently handle broadcast errors
         }
@@ -312,6 +323,12 @@ export class Daemon extends EventEmitter {
       if (message.type === 'user-answer' && message.userAnswer) {
         const answerText = Object.values(message.userAnswer.answers).join('\n');
         await this.sdkSession.sendPrompt(answerText);
+        return;
+      }
+
+      // Handle permission response from mobile
+      if (message.type === 'permission-response' && message.permissionResponse) {
+        this.sdkSession.handlePermissionResponse(message.permissionResponse);
         return;
       }
 

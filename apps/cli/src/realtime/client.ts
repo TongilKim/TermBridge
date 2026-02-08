@@ -10,6 +10,7 @@ import type {
   InteractiveResult,
   PresencePayload,
   UserQuestionData,
+  PermissionRequestData,
 } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
@@ -439,6 +440,32 @@ export class RealtimeClient extends EventEmitter {
     const message: RealtimeMessage = {
       type: 'user-question',
       userQuestion: questionData,
+      timestamp: Date.now(),
+      seq: ++this.seq,
+    };
+
+    await this.outputChannel.send({
+      type: 'broadcast',
+      event: 'output',
+      payload: message,
+    });
+
+    this.emit('broadcast', message);
+  }
+
+  async broadcastPermissionRequest(requestData: PermissionRequestData): Promise<void> {
+    if (!this.outputChannel) {
+      throw new Error('Not connected');
+    }
+
+    // Skip broadcasting if realtime is not enabled
+    if (!this.realtimeEnabled) {
+      return;
+    }
+
+    const message: RealtimeMessage = {
+      type: 'permission-request',
+      permissionRequest: requestData,
       timestamp: Date.now(),
       seq: ++this.seq,
     };

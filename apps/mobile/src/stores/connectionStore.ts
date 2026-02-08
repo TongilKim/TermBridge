@@ -14,6 +14,8 @@ import type {
   PresencePayload,
   UserQuestionData,
   UserAnswerData,
+  PermissionRequestData,
+  PermissionResponseData,
 } from 'termbridge-shared';
 import { REALTIME_CHANNELS } from 'termbridge-shared';
 
@@ -41,6 +43,9 @@ interface ConnectionStoreState {
   // User question state (from AskUserQuestion tool)
   pendingQuestion: UserQuestionData | null;
 
+  // Permission request state (from SDK canUseTool callback)
+  pendingPermissionRequest: PermissionRequestData | null;
+
   // Actions
   connect: (sessionId: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -62,6 +67,10 @@ interface ConnectionStoreState {
   // User question actions
   sendUserAnswer: (answers: Record<string, string>) => Promise<void>;
   clearPendingQuestion: () => void;
+
+  // Permission request actions
+  sendPermissionResponse: (behavior: 'allow' | 'deny', message?: string) => Promise<void>;
+  clearPendingPermissionRequest: () => void;
 
   // Scroll callback for chat UI
   registerScrollToBottom: (callback: () => void) => void;
@@ -91,6 +100,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   isInteractiveLoading: false,
   interactiveError: null,
   pendingQuestion: null,
+  pendingPermissionRequest: null,
 
   connect: async (sessionId: string) => {
     try {
@@ -112,6 +122,7 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         isInteractiveLoading: false,
         interactiveError: null,
         pendingQuestion: null,
+        pendingPermissionRequest: null,
       });
 
       // First check if the session is still active
@@ -220,6 +231,12 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
         // Handle user question from AskUserQuestion tool
         if (message.type === 'user-question' && message.userQuestion) {
           set({ pendingQuestion: message.userQuestion, isTyping: false });
+          return;
+        }
+
+        // Handle permission request from SDK canUseTool callback
+        if (message.type === 'permission-request' && message.permissionRequest) {
+          set({ pendingPermissionRequest: message.permissionRequest, isTyping: false });
           return;
         }
 
@@ -631,6 +648,46 @@ export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   },
 
   clearPendingQuestion: () => set({ pendingQuestion: null }),
+
+  sendPermissionResponse: async (behavior: 'allow' | 'deny', message?: string) => {
+    if (!inputChannel || get().state !== 'connected') {
+      set({ error: 'Not connected' });
+      return;
+    }
+
+    const pendingRequest = get().pendingPermissionRequest;
+    if (!pendingRequest) {
+      return;
+    }
+
+    const permissionResponse: PermissionResponseData = {
+      requestId: pendingRequest.requestId,
+      behavior,
+      message,
+    };
+
+    const realtimeMessage: RealtimeMessage = {
+      type: 'permission-response',
+      permissionResponse,
+      timestamp: Date.now(),
+      seq: ++seq,
+    };
+
+    // Clear the pending request
+    set({ pendingPermissionRequest: null, isTyping: true });
+
+    try {
+      await inputChannel.send({
+        type: 'broadcast',
+        event: 'input',
+        payload: realtimeMessage,
+      });
+    } catch {
+      set({ error: 'Failed to send permission response', isTyping: false });
+    }
+  },
+
+  clearPendingPermissionRequest: () => set({ pendingPermissionRequest: null }),
 
   registerScrollToBottom: (callback: () => void) => {
     scrollToBottomCallback = callback;

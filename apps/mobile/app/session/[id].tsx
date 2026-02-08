@@ -14,6 +14,7 @@ import { useConnectionStore } from '../../src/stores/connectionStore';
 import { Terminal } from '../../src/components/Terminal';
 import { InputBar } from '../../src/components/InputBar';
 import { UserQuestionPicker } from '../../src/components/UserQuestionPicker';
+import { PermissionRequestPicker } from '../../src/components/PermissionRequestPicker';
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +31,9 @@ export default function SessionScreen() {
     pendingQuestion,
     sendUserAnswer,
     clearPendingQuestion,
+    pendingPermissionRequest,
+    sendPermissionResponse,
+    clearPendingPermissionRequest,
   } = useConnectionStore();
 
   // Compute effective status for badge display
@@ -99,6 +103,15 @@ export default function SessionScreen() {
         questionData={pendingQuestion}
         onSubmit={sendUserAnswer}
         onClose={clearPendingQuestion}
+      />
+
+      {/* Permission Request Picker (for SDK canUseTool callback) */}
+      <PermissionRequestPicker
+        visible={pendingPermissionRequest !== null}
+        requestData={pendingPermissionRequest}
+        onAllow={() => sendPermissionResponse('allow')}
+        onDeny={(message) => sendPermissionResponse('deny', message)}
+        onClose={clearPendingPermissionRequest}
       />
     </KeyboardAvoidingView>
   );
